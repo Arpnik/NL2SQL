@@ -101,8 +101,12 @@ class Pipeline:
         self._graph = build_graph(settings)
 
         # Ensure DB views are ready before any query runs
+        #create a separate write session since we need to generate the views before read session
+        write_settings = Settings()
+        write_settings.database_read_only = False
+        write_session = SessionManager(write_settings)
         self._view_manager = DatabaseViewManager(
-            connection=session.connection,
+            connection=write_session.connection,
             department=session.department.value,
         )
         self._view_manager.ensure_views()

@@ -1,18 +1,36 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 
 logger = logging.getLogger(__name__)
 
 
-# Maps view name → the SQL used to CREATE it.
-# Add future views here — the manager will create any that are missing.
-_VIEW_DEFINITIONS: dict[str, str] = {
-    "dept_employees": (
-        "CREATE VIEW IF NOT EXISTS dept_employees AS "
-        "SELECT * FROM Employee WHERE Department = ?"
-    ),
+def _make_dept_employees_sql(department: str) -> str:
+    """
+    Build the CREATE VIEW SQL for dept_employees, embedding the department
+    value directly — SQLite views don't support bound parameters.
+
+    The department name is validated against a strict allowlist pattern
+    before interpolation to prevent SQL injection.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9 _-]{1,64}", department):
+        raise ValueError(
+            f"Department name contains invalid characters: {department!r}"
+        )
+    # Use single-quoted string literal; escape any embedded single quotes.
+    safe = department.replace("'", "''")
+    return (
+        f"CREATE VIEW IF NOT EXISTS dept_employees AS "
+        f"SELECT * FROM Employee WHERE Department = '{safe}'"
+    )
+
+
+# Maps view name → a callable(department) -> SQL  *or*  a plain SQL string.
+# Plain strings are used for views that need no runtime values.
+_VIEW_DEFINITIONS: dict[str, str | callable] = {
+    "dept_employees": _make_dept_employees_sql,
 }
 
 
@@ -21,9 +39,9 @@ class DatabaseViewManager:
     Ensures required SQLite views exist before the pipeline runs.
 
     Why a separate class?
-      - Views are session-scoped: dept_employees must be filtered to THIS session's
-        department. SQLite views don't support parameters, so we drop and recreate
-        the view at the start of each session.
+      - Views are session-scoped: dept_employees must be filtered to THIS
+        session's department. SQLite views don't support parameters, so we
+        drop and recreate the view at the start of each session.
       - SessionManager owns the connection; this class borrows it (no ownership).
       - Keeping view lifecycle out of SessionManager follows single-responsibility.
 
@@ -41,9 +59,8 @@ class DatabaseViewManager:
         """
         Drop and recreate all managed views filtered to the session department.
 
-        We always DROP+CREATE (not CREATE IF NOT EXISTS) because a prior session
-        may have created dept_employees for a different department, and we must
-        never inherit a stale filter.
+        Always DROP+CREATE (not CREATE IF NOT EXISTS) because a prior session
+        may have created dept_employees for a different department.
         """
         self._drop_views()
         self._create_views()
@@ -53,9 +70,7 @@ class DatabaseViewManager:
         self._drop_views()
 
     def verify_views(self) -> dict[str, bool]:
-        """
-        Returns a dict of {view_name: exists} for diagnostics/testing.
-        """
+        """Returns {view_name: exists} for diagnostics/testing."""
         cursor = self._conn.execute(
             "SELECT name FROM sqlite_master WHERE type='view'"
         )
@@ -70,19 +85,22 @@ class DatabaseViewManager:
                 self._conn.execute(f"DROP VIEW IF EXISTS {view_name}")
                 logger.debug("[ViewManager] Dropped view: %s", view_name)
             except sqlite3.Error as exc:
-                logger.warning("[ViewManager] Could not drop view %s: %s", view_name, exc)
+                logger.warning(
+                    "[ViewManager] Could not drop view %s: %s", view_name, exc
+                )
         self._conn.commit()
 
     def _create_views(self) -> None:
-        for view_name, create_sql in _VIEW_DEFINITIONS.items():
+        for view_name, definition in _VIEW_DEFINITIONS.items():
+            # Resolve the SQL: call the factory if it's a callable,
+            # otherwise use the string directly.
+            create_sql = (
+                definition(self._department)
+                if callable(definition)
+                else definition
+            )
             try:
-                # dept_employees is the only parameterised view right now.
-                # For non-parameterised views, omit the second argument.
-                if "?" in create_sql:
-                    self._conn.execute(create_sql, (self._department,))
-                else:
-                    self._conn.execute(create_sql)
-
+                self._conn.execute(create_sql)
                 logger.info(
                     "[ViewManager] Created view '%s' for department '%s'",
                     view_name,
@@ -93,7 +111,6 @@ class DatabaseViewManager:
                     f"(filtered to department: {self._department})"
                 )
             except sqlite3.Error as exc:
-                # A missing view will cause query failures — re-raise here.
                 raise RuntimeError(
                     f"Failed to create view '{view_name}': {exc}"
                 ) from exc
