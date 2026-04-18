@@ -110,7 +110,6 @@ class Pipeline:
             department=session.department.value,
         )
         self._view_manager.ensure_views()
-
         # Verify views were created correctly
         status = self._view_manager.verify_views()
         for view, exists in status.items():
@@ -120,6 +119,8 @@ class Pipeline:
                     "Check DatabaseViewManager logs."
                 )
             logger.info("[Pipeline] View verified: %s = %s", view, exists)
+        write_session.close()
+
 
     def run(self, question: str) -> QueryResult:
         """
