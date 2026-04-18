@@ -1,6 +1,25 @@
 from __future__ import annotations
 
-from com.nl2sql.agent.node import ast_guard_node, view_guard_node, execute_sql_node, output_guard_node
+import sqlite3
+from typing import Any, TypedDict
+
+from langgraph.graph import END, StateGraph
+
+from com.nl2sql.agent.node import (
+    ast_guard_node,
+    execute_sql_node,
+    generate_sql_node,
+    output_guard_node,
+    schema_guard_node,
+    view_guard_node,
+)
+from com.nl2sql.audit_logger import AuditLogger
+from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
+from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
+from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
+from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
+from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
+from com.nl2sql.settings import Settings
 
 """
 LangGraph agent — owns the retry loop and wires nodes together.
@@ -24,21 +43,6 @@ Graph shape:
     END (success)   <─────────┘ (if attempt > max_retries → END with error)
 """
 
-import sqlite3
-from typing import Any, Optional, TypedDict
-
-from langgraph.graph import END, StateGraph
-
-from com.nl2sql.audit_logger import AuditLogger
-from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
-from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
-from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
-from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
-from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
-from com.nl2sql.settings import Settings
-
-
-# ── Graph state ───────────────────────────────────────────────────────────────
 
 class AgentState(TypedDict):
     # Inputs (set once at graph entry)
@@ -53,8 +57,8 @@ class AgentState(TypedDict):
     rows: list[dict[str, Any]]
 
     # Error tracking
-    last_rejection_reason: Optional[str]
-    final_error: Optional[str]             # set when max_retries exhausted
+    last_rejection_reason: str | None
+    final_error: str | None             # set when max_retries exhausted
 
     # Injected dependencies (set once at graph entry)
     settings: Settings
@@ -65,8 +69,6 @@ class AgentState(TypedDict):
     view_guardrail: ViewGuardrail
     output_guardrail: OutputGuardrail
 
-
-# ── Routing helpers ───────────────────────────────────────────────────────────
 
 def _route_after_guard(state: AgentState) -> str:
     """
@@ -89,8 +91,6 @@ def _route_after_output_guard(state: AgentState) -> str:
         return "end"
     return "end"  # success — also ends, caller reads state["rows"]
 
-
-# ── Graph factory ─────────────────────────────────────────────────────────────
 
 def build_graph(settings: Settings) -> StateGraph:
     """

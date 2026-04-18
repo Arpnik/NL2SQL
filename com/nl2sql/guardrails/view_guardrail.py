@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 
 import sqlglot
-import sqlglot.expressions as exp
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 

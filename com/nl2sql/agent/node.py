@@ -1,6 +1,21 @@
 from __future__ import annotations
 
+import logging
+import sqlite3
+from typing import Any
+
+import anthropic
+
+from com.nl2sql.audit_logger import AuditLogger
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
+from com.nl2sql.guardrails.base import GuardrailContext, GuardrailStatus
+from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
+from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
+from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
+from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
+
+logger = logging.getLogger(__name__)
+
 
 """
 LangGraph node functions.
@@ -13,22 +28,6 @@ Each node function:
 
 Node functions are intentionally thin — all logic lives in the guardrail classes.
 """
-
-import logging
-import sqlite3
-from typing import Any
-
-import anthropic
-
-from com.nl2sql.audit_logger import AuditLogger
-from com.nl2sql.guardrails.base import GuardrailContext, GuardrailStatus
-from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
-from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
-from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
-from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
-
-logger = logging.getLogger(__name__)
-
 
 def _make_ctx(state: dict) -> GuardrailContext:
     return GuardrailContext(

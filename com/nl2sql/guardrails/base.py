@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class GuardrailStatus(Enum):
@@ -47,7 +47,7 @@ class GuardrailResult:
     status: GuardrailStatus
     sql: str
     layer: str = ""
-    reason: Optional[str] = None
+    reason: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -73,8 +73,8 @@ class BaseGuardrail(ABC):
         self,
         status: GuardrailStatus,
         sql: str,
-        reason: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        reason: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> GuardrailResult:
         return GuardrailResult(
             status=status,
@@ -87,10 +87,10 @@ class BaseGuardrail(ABC):
     def _pass(self, sql: str) -> GuardrailResult:
         return self._result(GuardrailStatus.PASS, sql)
 
-    def _mutate(self, sql: str, reason: Optional[str] = None) -> GuardrailResult:
+    def _mutate(self, sql: str, reason: str | None = None) -> GuardrailResult:
         return self._result(GuardrailStatus.MUTATE, sql, reason)
 
-    def _reject(self, sql: str, reason: str, metadata: Optional[dict] = None) -> GuardrailResult:
+    def _reject(self, sql: str, reason: str, metadata: dict | None = None) -> GuardrailResult:
         return self._result(GuardrailStatus.REJECT, sql, reason, metadata)
 
     @abstractmethod

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 
-
 # Few-shot examples — every example SQL has the department filter.
 # These are injected into the system prompt so the LLM sees the pattern clearly.
 _FEW_SHOT_EXAMPLES = [

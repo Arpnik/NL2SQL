@@ -5,7 +5,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from com.nl2sql.guardrails.base import GuardrailStatus
 
@@ -20,7 +20,7 @@ class AuditEntry:
     status: str                       # GuardrailStatus.value
     department: str
     sql: str
-    reason: Optional[str] = None
+    reason: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -51,8 +51,8 @@ class AuditLogger:
         session_id: str,
         attempt: int,
         sql: str,
-        reason: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        reason: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         entry = AuditEntry(
             session_id=session_id,
