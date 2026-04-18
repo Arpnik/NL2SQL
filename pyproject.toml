@@ -1,0 +1,59 @@
+[project]
+name = "nl2sql-console"
+version = "0.1.0"
+description = "NL2SQL console app with department guardrails"
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    #Langgraph for agent orchestration and ReAct loop management
+    "langgraph>=0.2.0",
+    # LLM provider
+    "anthropic>=0.40.0",
+    # SQL parsing and AST validation (Layer 3)
+    "sqlglot>=25.0.0",
+    # SQLite is stdlib — no package needed but we use aiosqlite for async support
+    #    "aiosqlite>=0.20.0",
+    # Output formatting for console tables
+    "rich>=13.9.0",
+    # Environment variable management
+    "python-dotenv>=1.0.0",
+    # Type hints and data validation
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.13.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[project.scripts]
+nl2sql = "com.nl2sql.console:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["com"]
