@@ -18,7 +18,7 @@ _FORBIDDEN_KEYWORDS = frozenset({
 # Forbidden statement types (in addition to keyword scanning).
 _FORBIDDEN_STMT_TYPES = (
     exp.Insert, exp.Update, exp.Delete, exp.Drop,
-    exp.Create, exp.AlterTable, exp.Command,
+    exp.Create, exp.Alter, exp.Command,
 )
 
 

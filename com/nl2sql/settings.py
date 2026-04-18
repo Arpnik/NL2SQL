@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from db_session_manager import Department
 from dotenv import load_dotenv
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from com.nl2sql.models import Department
 
 
 def _find_env_file() -> Path | None:
