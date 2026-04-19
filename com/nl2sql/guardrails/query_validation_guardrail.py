@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from anthropic import Anthropic
+from rich import print
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 from com.nl2sql.settings import Settings
@@ -72,14 +73,14 @@ class QueryValidationGuardrail(BaseGuardrail):
         except Exception as exc:
             return self._pass(ctx.sql, metadata={"validation_skipped": str(exc)})
 
-        if verdict == "INVALID":
+        if "INVALID" in verdict:
             return self._reject("", INVALID_QUERY_MESSAGE, metadata={"verdict": verdict})
 
-        if verdict == "CROSS_DEPT":
+        if "CROSS_DEPT" in verdict:
             msg = CROSS_DEPT_MESSAGE.format(dept=ctx.department)
             return self._reject("", msg, metadata={"verdict": verdict})
 
-        if verdict == "DISCLAIMER":
+        if "DISCLAIMER" in verdict:
             print("Disclaimer should be printed !!!!")
             # Pass through but signal that display should add a scope note
             return self._pass(ctx.sql, metadata={"needs_disclaimer": True})

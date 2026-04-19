@@ -71,7 +71,7 @@ def main() -> None:
                 break
 
             result = pipeline.run(question)
-            print(result.display())
+            print(f"[green]{result.display()}[/green]")
 
     except KeyboardInterrupt:
         print("\n[/yellow][INFO] Interrupted.[/yellow]")

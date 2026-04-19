@@ -53,10 +53,10 @@ class QueryResult:
 
     def display(self) -> str:
         """Pretty-print the result for the console."""
-        lines = [f"\n[SQL]\n{self.sql}\n"]
+        lines = [f"\n[magenta][SQL]\n{self.sql}[/magenta]\n"]
 
         if self.error:
-            lines.append(f"[ERROR] {self.error}")
+            lines.append(f"[red][ERROR] {self.error}[/red]")
             return "\n".join(lines)
 
         if not self.rows:
@@ -81,10 +81,10 @@ class QueryResult:
                 )
             lines.append(f"\n{len(self.rows)} row(s) | department: {self.department}")
 
-        if self.needs_disclaimer:                # ← add
+        if self.needs_disclaimer:
             lines.append(
-                f"\n⚠  Note: Results are scoped to the {self.department} department only. "
-                f"You do not have access to other departments."
+                f"[yellow]\n⚠  Note: Results are scoped to the {self.department} department only. "
+                f"You do not have access to other departments.[/yellow]"
             )
 
         return "\n".join(lines)
