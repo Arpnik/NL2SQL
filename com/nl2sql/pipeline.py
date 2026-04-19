@@ -112,7 +112,7 @@ class Pipeline:
         # Create a separate write session since we need to generate the views before read session
         write_settings = Settings()
         write_settings.database_read_only = False
-        self.write_session = SessionManager(write_settings)
+        self.write_session = SessionManager(write_settings, settings.department, True)
         self._view_manager = DatabaseViewManager(
             connection=self.write_session.connection,
             department=session.department.value,

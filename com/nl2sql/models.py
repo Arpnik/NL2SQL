@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, TypedDict
 
 from com.nl2sql.audit_logger import AuditLogger
+from com.nl2sql.enums import Department
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
 from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
@@ -11,7 +12,6 @@ from com.nl2sql.guardrails.query_validation_guardrail import QueryValidationGuar
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
 from com.nl2sql.settings import Settings
-from com.nl2sql.types import Department
 
 
 @dataclass(frozen=True)

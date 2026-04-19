@@ -40,7 +40,8 @@ def main() -> None:
     _configure_logging(settings.log_level)
     print(settings.display())
 
-    session = SessionManager(settings=settings, department=settings.department)
+    session = SessionManager(settings=settings, skip_log_at_startup=False,
+                             department=settings.department)
 
     try:
         pipeline = Pipeline(session=session, settings=settings)
