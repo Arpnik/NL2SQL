@@ -100,7 +100,7 @@ class Pipeline:
 
         # Compile graph once — reused for every query in the session
         self._graph = build_graph(settings)
-        self._query_validation_guardrail = QueryValidationGuardrail()
+        self._query_validation_guardrail = QueryValidationGuardrail(settings.query_validation_model)
 
         # Ensure DB views are ready before any query runs
         #create a separate write session since we need to generate the views before read session

@@ -69,6 +69,12 @@ class Settings(BaseSettings):
         description="Model used for the semantic LLM Judge check (Layer 3.5).",
     )
 
+    query_validation_model: str = Field(
+        default="claude-haiku-4-5-20251001",
+        description="Model used for checking if the user query is a valid ask "
+                    "about the employee database (Layer 0 guardrail).",
+    )
+
     llm_max_tokens: int = Field(
         default=1024,
         ge=64,
