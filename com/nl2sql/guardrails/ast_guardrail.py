@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import sqlglot
 import sqlglot.expressions as exp
 
@@ -32,13 +30,7 @@ _DEPT_FILTERED_VIEWS = frozenset({
 # AST helpers
 # ---------------------------------------------------------------------------
 
-def _all_select_scopes(tree: exp.Expression) -> Iterator[tuple[int, exp.Select]]:
-    """Yield (index, SELECT node) for the top-level query and every sub-SELECT."""
-    for i, node in enumerate(tree.find_all(exp.Select)):
-        yield i, node
-
-
-def _direct_tables(select: exp.Select) -> Iterator[exp.Table]:
+def _direct_tables(select: exp.Select):
     """
     Yield Table nodes that belong *directly* to this SELECT scope.
     Does NOT descend into nested sub-SELECTs — each scope is checked
@@ -125,7 +117,7 @@ class ASTGuardrail(BaseGuardrail):
             return self._reject(sql, "No SQL statements found.")
         violations: list[str] = []
 
-        for i, scope in _all_select_scopes(tree):
+        for i, scope in enumerate(tree.find_all(exp.Select)):
             label = "top-level SELECT" if i == 0 else f"sub-SELECT #{i}"
             tables = list(_direct_tables(scope))
             table_names = {t.name.lower() for t in tables}
