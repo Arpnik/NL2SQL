@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
 from rich import print
 
 from com.nl2sql.guardrails.base import GuardrailStatus

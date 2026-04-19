@@ -22,7 +22,8 @@ def guard() -> SchemaGuardrail:
 
 class TestPass:
     def test_simple_select(self, guard):
-        r = guard.validate(_ctx("SELECT Name FROM dept_employees WHERE Department = 'Marketing'"))
+        r = guard.validate(_ctx("SELECT Name FROM dept_employees WHERE "
+                                "Department = 'Marketing'"))
         assert r.status == GuardrailStatus.PASS
 
     def test_join_allowed_views(self, guard):
@@ -36,7 +37,8 @@ class TestPass:
         assert r.status == GuardrailStatus.PASS
 
     def test_aggregate(self, guard):
-        r = guard.validate(_ctx("SELECT SUM(SalaryAmount) FROM dept_employees WHERE Department = 'Marketing'"))
+        r = guard.validate(_ctx("SELECT SUM(SalaryAmount) FROM dept_employees "
+                                "WHERE Department = 'Marketing'"))
         assert r.status == GuardrailStatus.PASS
 
 

@@ -39,7 +39,8 @@ This is a READ-ONLY system — no writes are allowed under any circumstances.
 
 Reply with ONLY one token:
 
-  VALID      — answerable from the schema; targets the user's own department or no specific department
+  VALID      — answerable from the schema and
+               targets the user's own department or no specific department
   INVALID    — off-topic, incoherent, or references data not in the schema
   WRITE_OP   — requests any data modification: insert, update, delete, drop, truncate, alter, etc.
   CROSS_DEPT — explicitly asks about a different department than the session department

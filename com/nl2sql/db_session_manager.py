@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 from datetime import datetime
 from pathlib import Path
+
 from rich import print
 
 from com.nl2sql.models import Department, SessionState
@@ -130,7 +131,8 @@ class SessionManager:
     def _log_startup(self) -> None:
         print(f"[yellow][INFO] Session ID    : {self._session_id}[/yellow]")
         print(f"[yellow][INFO] Department selected: {self._department.value}[/yellow]")
-        print(f"[yellow][INFO] Started at    : {self._started_at.strftime('%Y-%m-%d %H:%M:%S')} [/yellow]")
+        print(f"[yellow][INFO] Started at    : "
+              f"{self._started_at.strftime('%Y-%m-%d %H:%M:%S')} [/yellow]")
 
 
     def _create_db_connection(self) -> sqlite3.Connection:

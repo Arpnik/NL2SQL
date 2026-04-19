@@ -12,7 +12,6 @@ from com.nl2sql.guardrails.base import GuardrailContext, GuardrailStatus
 from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
 from com.nl2sql.guardrails.query_validation_guardrail import (
-    INVALID_QUERY_MESSAGE,
     QueryValidationGuardrail,
 )
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
