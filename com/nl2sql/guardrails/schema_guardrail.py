@@ -5,10 +5,8 @@ import sqlglot.expressions as exp
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 
-# Only these tables/views are permitted in generated SQL.
-# todo think if employee should be allowed here
-_ALLOWED_TABLES = frozenset({"employee", "certification", "benefits",
-                             "dept_employees", "dept_certifications", "dept_benefits",})
+# Only these views are permitted in generated SQL.
+_ALLOWED_TABLES = frozenset({"dept_employees", "dept_certifications", "dept_benefits",})
 
 # Any of these keywords in the raw SQL is an immediate hard reject.
 _FORBIDDEN_KEYWORDS = frozenset({
