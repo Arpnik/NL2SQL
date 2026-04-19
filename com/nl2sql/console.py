@@ -74,7 +74,7 @@ def main() -> None:
             print(f"[green]{result.display()}[/green]")
 
     except KeyboardInterrupt:
-        print("\n[/yellow][INFO] Interrupted.[/yellow]")
+        print("\n[cyan] Interrupted.[/cyan]")
 
     finally:
         pipeline.shutdown()

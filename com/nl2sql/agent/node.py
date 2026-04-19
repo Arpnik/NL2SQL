@@ -231,7 +231,7 @@ def query_validation_node(
 
     if result.rejected:
         return {
-            "final_error": INVALID_QUERY_MESSAGE,
+            "final_error": result.reason,
             "last_rejection_reason": result.reason,
             "needs_disclaimer": False,
         }
