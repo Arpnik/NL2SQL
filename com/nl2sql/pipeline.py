@@ -82,8 +82,6 @@ class QueryResult:
         return "\n".join(lines)
 
 
-# ── Pipeline ──────────────────────────────────────────────────────────────────
-
 class Pipeline:
     """
     Orchestrates a single query through the full guardrail + LangGraph pipeline.
@@ -101,7 +99,7 @@ class Pipeline:
         self._graph = build_graph(settings)
 
         # Ensure DB views are ready before any query runs
-        #create a separate write session since we need to generate the views before read session
+        # Create a separate write session since we need to generate the views before read session
         write_settings = Settings()
         write_settings.database_read_only = False
         write_session = SessionManager(write_settings)
