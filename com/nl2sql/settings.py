@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from com.nl2sql.models import Department
+from com.nl2sql.types import Department
 
 
 def _find_env_file() -> Path | None:
@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     llm_judge_model: str = Field(
         default="claude-sonnet-4-20250514",
         description="Model used for the semantic LLM Judge check (Layer 3.5).",
+    )
+
+    query_validation_model: str = Field(
+        default="claude-haiku-4-5-20251001",
+        description="Model used for checking if the user query is a valid ask "
+                    "about the employee database (Layer 0 guardrail).",
     )
 
     llm_max_tokens: int = Field(

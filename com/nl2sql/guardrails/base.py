@@ -22,6 +22,7 @@ class GuardrailContext:
     department: str       # session-locked, sourced from SessionManager
     session_id: str
     attempt: int = 1      # incremented by the retry mechanism on each loop
+    user_question: str = ""
 
     def with_sql(self, new_sql: str) -> GuardrailContext:
         """Return a new context with updated SQL — preserves all other fields."""
@@ -30,6 +31,7 @@ class GuardrailContext:
             department=self.department,
             session_id=self.session_id,
             attempt=self.attempt,
+            user_question=self.user_question,
         )
 
 
@@ -84,8 +86,8 @@ class BaseGuardrail(ABC):
             metadata=metadata or {},
         )
 
-    def _pass(self, sql: str) -> GuardrailResult:
-        return self._result(GuardrailStatus.PASS, sql)
+    def _pass(self, sql: str, metadata: dict | None = None) -> GuardrailResult:
+        return self._result(GuardrailStatus.PASS, sql, metadata=metadata)
 
     def _mutate(self, sql: str, reason: str | None = None) -> GuardrailResult:
         return self._result(GuardrailStatus.MUTATE, sql, reason)

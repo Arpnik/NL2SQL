@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
-from typing import Any, TypedDict
-
 from langgraph.graph import END, StateGraph
 
 from com.nl2sql.agent.node import (
@@ -10,6 +7,7 @@ from com.nl2sql.agent.node import (
     execute_sql_node,
     generate_sql_node,
     output_guard_node,
+    query_validation_node,
     schema_guard_node,
     view_guard_node,
 )
@@ -19,6 +17,7 @@ from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
+from com.nl2sql.models import AgentState
 from com.nl2sql.settings import Settings
 
 """
@@ -43,33 +42,6 @@ Graph shape:
     END (success)   <─────────┘ (if attempt > max_retries → END with error)
 """
 
-
-class AgentState(TypedDict):
-    # Inputs (set once at graph entry)
-    user_question: str
-    department: str
-    session_id: str
-    connection: sqlite3.Connection          # passed by reference — not serialised
-
-    # Mutable state updated by nodes
-    sql: str
-    attempt: int
-    rows: list[dict[str, Any]]
-
-    # Error tracking
-    last_rejection_reason: str | None
-    final_error: str | None             # set when max_retries exhausted
-
-    # Injected dependencies (set once at graph entry)
-    settings: Settings
-    audit_logger: AuditLogger
-    prompt_guardrail: PromptGuardrail
-    schema_guardrail: SchemaGuardrail
-    ast_guardrail: ASTGuardrail
-    view_guardrail: ViewGuardrail
-    output_guardrail: OutputGuardrail
-
-
 def _route_after_guard(state: AgentState) -> str:
     """
     Called after schema_guard, ast_guard, and view_guard.
@@ -91,6 +63,19 @@ def _route_after_output_guard(state: AgentState) -> str:
         return "end"
     return "end"  # success — also ends, caller reads state["rows"]
 
+def _route_after_query_validation(state: AgentState) -> str:
+    """INVALID question → end immediately (no retry). Valid → generate SQL."""
+    if state.get("final_error"):
+        return "end"
+    return "generate_sql"
+
+def _route_after_execute(state: AgentState) -> str:
+    if state.get("last_rejection_reason") and not state.get("rows"):
+        if state["attempt"] > state["settings"].max_retries + 1:
+            return "end"
+        return "generate_sql"
+    return "output_guard"
+
 
 def build_graph(settings: Settings) -> StateGraph:
     """
@@ -107,6 +92,10 @@ def build_graph(settings: Settings) -> StateGraph:
     builder = StateGraph(AgentState)
 
     # ── Register nodes ────────────────────────────────────────────────────────
+    builder.add_node(
+        "query_validation",
+        lambda s: query_validation_node(s, s["query_validation_guardrail"], audit),
+    )
     builder.add_node(
         "generate_sql",
         lambda s: generate_sql_node(s, prompt_g, audit),
@@ -133,9 +122,15 @@ def build_graph(settings: Settings) -> StateGraph:
     )
 
     # ── Entry point ───────────────────────────────────────────────────────────
-    builder.set_entry_point("generate_sql")
+    builder.set_entry_point("query_validation")
 
     # ── Edges ─────────────────────────────────────────────────────────────────
+    builder.add_conditional_edges(
+        "query_validation",
+        _route_after_query_validation,
+        {"generate_sql": "generate_sql", "end": END},
+    )
+
     builder.add_edge("generate_sql", "schema_guard")
 
     builder.add_conditional_edges(
@@ -154,8 +149,11 @@ def build_graph(settings: Settings) -> StateGraph:
         {"next": "execute_sql", "generate_sql": "generate_sql", "end": END},
     )
 
-    builder.add_edge("execute_sql", "output_guard")
-
+    builder.add_conditional_edges(
+        "execute_sql",
+        _route_after_execute,
+        {"generate_sql": "generate_sql", "output_guard": "output_guard", "end": END},
+    )
     builder.add_conditional_edges(
         "output_guard",
         _route_after_output_guard,

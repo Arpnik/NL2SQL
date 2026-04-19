@@ -11,6 +11,7 @@ from com.nl2sql.db_view_manager import DatabaseViewManager
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
 from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
+from com.nl2sql.guardrails.query_validation_guardrail import QueryValidationGuardrail
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
 from com.nl2sql.settings import Settings
@@ -97,14 +98,15 @@ class Pipeline:
 
         # Compile graph once — reused for every query in the session
         self._graph = build_graph(settings)
+        self._query_validation_guardrail = QueryValidationGuardrail(settings)
 
         # Ensure DB views are ready before any query runs
         # Create a separate write session since we need to generate the views before read session
         write_settings = Settings()
         write_settings.database_read_only = False
-        write_session = SessionManager(write_settings)
+        self.write_session = SessionManager(write_settings)
         self._view_manager = DatabaseViewManager(
-            connection=write_session.connection,
+            connection=self.write_session.connection,
             department=session.department.value,
         )
         self._view_manager.ensure_views()
@@ -117,7 +119,6 @@ class Pipeline:
                     "Check DatabaseViewManager logs."
                 )
             logger.info("[Pipeline] View verified: %s = %s", view, exists)
-        write_session.close()
 
 
     def run(self, question: str) -> QueryResult:
@@ -140,6 +141,7 @@ class Pipeline:
             "settings": self._settings,
             "audit_logger": self._audit,
             # Guardrail instances — created fresh per run so state is clean
+            "query_validation_guardrail": self._query_validation_guardrail,
             "prompt_guardrail": PromptGuardrail(),
             "schema_guardrail": SchemaGuardrail(),
             "ast_guardrail": ASTGuardrail(),
@@ -179,4 +181,5 @@ class Pipeline:
         """Call at application exit to clean up views and close resources."""
         self._view_manager.drop_views()
         self._session.close()
+        self.write_session.close()
         print(self._session.summary())

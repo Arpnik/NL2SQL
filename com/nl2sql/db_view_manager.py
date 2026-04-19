@@ -1,3 +1,4 @@
+# com/nl2sql/db_view_manager.py
 from __future__ import annotations
 
 import logging
@@ -19,7 +20,6 @@ def _make_dept_employees_sql(department: str) -> str:
         raise ValueError(
             f"Department name contains invalid characters: {department!r}"
         )
-    # Use single-quoted string literal; escape any embedded single quotes.
     safe = department.replace("'", "''")
     return (
         f"CREATE VIEW IF NOT EXISTS dept_employees AS "
@@ -27,10 +27,52 @@ def _make_dept_employees_sql(department: str) -> str:
     )
 
 
+def _make_dept_certifications_sql(department: str) -> str:
+    """
+    Build the CREATE VIEW SQL for dept_certifications.
+
+    Joins Certification to Employee so only certifications belonging to
+    employees in the session department are visible.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9 _-]{1,64}", department):
+        raise ValueError(
+            f"Department name contains invalid characters: {department!r}"
+        )
+    safe = department.replace("'", "''")
+    return (
+        f"CREATE VIEW IF NOT EXISTS dept_certifications AS "
+        f"SELECT c.* FROM Certification c "
+        f"JOIN Employee e ON e.EmployeeId = c.EmployeeId "
+        f"WHERE e.Department = '{safe}'"
+    )
+
+
+def _make_dept_benefits_sql(department: str) -> str:
+    """
+    Build the CREATE VIEW SQL for dept_benefits.
+
+    Joins Benefits to Employee so only benefit records belonging to
+    employees in the session department are visible.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9 _-]{1,64}", department):
+        raise ValueError(
+            f"Department name contains invalid characters: {department!r}"
+        )
+    safe = department.replace("'", "''")
+    return (
+        f"CREATE VIEW IF NOT EXISTS dept_benefits AS "
+        f"SELECT b.* FROM Benefits b "
+        f"JOIN Employee e ON e.EmployeeId = b.EmployeeId "
+        f"WHERE e.Department = '{safe}'"
+    )
+
+
 # Maps view name → a callable(department) -> SQL  *or*  a plain SQL string.
 # Plain strings are used for views that need no runtime values.
 _VIEW_DEFINITIONS: dict[str, str | callable] = {
-    "dept_employees": _make_dept_employees_sql,
+    "dept_employees":     _make_dept_employees_sql,
+    "dept_certifications": _make_dept_certifications_sql,   # ← new
+    "dept_benefits":       _make_dept_benefits_sql,         # ← new
 }
 
 

@@ -26,7 +26,6 @@ def _configure_logging(log_level: str) -> None:
 
 
 def main() -> None:
-    # ── Bootstrap ─────────────────────────────────────────────────────────────
     try:
         settings = Settings()
     except Exception as exc:

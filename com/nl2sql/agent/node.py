@@ -11,8 +11,13 @@ from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
 from com.nl2sql.guardrails.base import GuardrailContext, GuardrailStatus
 from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
+from com.nl2sql.guardrails.query_validation_guardrail import (
+    INVALID_QUERY_MESSAGE,
+    QueryValidationGuardrail,
+)
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
+from com.nl2sql.models import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,7 @@ def _make_ctx(state: dict) -> GuardrailContext:
         department=state["department"],
         session_id=state["session_id"],
         attempt=state.get("attempt", 1),
+        user_question=state.get("user_question", ""),
     )
 
 def _audit(
@@ -71,7 +77,9 @@ def generate_sql_node(
     ctx = _make_ctx(state)
 
     system_prompt = prompt_guard.build_system_prompt(
-        ctx, rejection_reason=state.get("last_rejection_reason", "")
+        ctx, rejection_reason=state.get("last_rejection_reason", ""),
+        sql_error=state.get("sql_error"),
+        last_sql=state.get("sql", ""),
     )
 
     settings = state["settings"]
@@ -171,7 +179,12 @@ def execute_sql_node(state: dict, audit: AuditLogger) -> dict:
         error_msg = f"SQL execution error: {exc}"
         logger.error("[execute_sql] %s", error_msg)
         _audit(audit, "ExecuteSQLNode", GuardrailStatus.REJECT, state, sql, error_msg)
-        return {"final_error": error_msg, "rows": []}
+        return {
+            "final_error": None,
+            "rows": [],
+            "sql_error": error_msg,  # ← new
+            "last_rejection_reason": error_msg,  # ← triggers retry loop
+        }
 
     logger.info("[execute_sql] Returned %d row(s)", len(rows))
     _audit(audit, "ExecuteSQLNode", GuardrailStatus.PASS, state, sql)
@@ -197,3 +210,34 @@ def output_guard_node(
         }
 
     return {"rows": clean_rows, "final_error": None, "last_rejection_reason": None}
+
+def query_validation_node(
+    state: AgentState,
+    guardrail: QueryValidationGuardrail,
+    audit: AuditLogger,
+) -> dict:
+    """
+    Layer 0 node — validates the user question before any SQL generation.
+    On REJECT: sets final_error with the fixed user-facing message.
+    The graph router sees final_error and exits immediately — no retry.
+    """
+    ctx = _make_ctx(state)      # ← use the shared helper, not a manual constructor
+    result = guardrail.validate(ctx)
+
+    _audit(                     # ← use the shared helper, not audit.log directly
+        audit,
+        result.layer,
+        result.status,
+        state,
+        result.sql,
+        result.reason,
+        result.metadata,
+    )
+
+    if result.rejected:         # ← use the property, not string comparison
+        return {
+            "final_error": INVALID_QUERY_MESSAGE,
+            "last_rejection_reason": result.reason,
+        }
+
+    return {"last_rejection_reason": None}
