@@ -216,15 +216,10 @@ def query_validation_node(
     guardrail: QueryValidationGuardrail,
     audit: AuditLogger,
 ) -> dict:
-    """
-    Layer 0 node — validates the user question before any SQL generation.
-    On REJECT: sets final_error with the fixed user-facing message.
-    The graph router sees final_error and exits immediately — no retry.
-    """
-    ctx = _make_ctx(state)      # ← use the shared helper, not a manual constructor
+    ctx = _make_ctx(state)
     result = guardrail.validate(ctx)
 
-    _audit(                     # ← use the shared helper, not audit.log directly
+    _audit(
         audit,
         result.layer,
         result.status,
@@ -234,10 +229,16 @@ def query_validation_node(
         result.metadata,
     )
 
-    if result.rejected:         # ← use the property, not string comparison
+    if result.rejected:
         return {
             "final_error": INVALID_QUERY_MESSAGE,
             "last_rejection_reason": result.reason,
+            "needs_disclaimer": False,
         }
 
-    return {"last_rejection_reason": None}
+    return {
+        "last_rejection_reason": None,
+        "needs_disclaimer": bool(
+            result.metadata and result.metadata.get("needs_disclaimer", False)
+        ),
+    }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from anthropic import Anthropic
+from rich import console
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 from com.nl2sql.settings import Settings
@@ -11,6 +12,11 @@ INVALID_QUERY_MESSAGE = (
     "Please refine your question and try again."
 )
 
+CROSS_DEPT_MESSAGE = (
+    "Access denied: your session is restricted to the {dept} department. "
+    "You cannot query data from other departments."
+)
+
 _SYSTEM_PROMPT = """You are a query validation assistant for an employee database.
 
 The database contains ONLY:
@@ -18,18 +24,29 @@ The database contains ONLY:
   - Certification   : employee certifications (name, date achieved)
   - Benefits        : employee benefits packages and remaining balances
 
-Reply with ONLY one token:
-  VALID    — the question can be answered from the schema above
-  INVALID  — the question is off-topic, incoherent, or references data not in the schema
+The known departments are: Sales, Marketing, Engineering.
+The user's session department will be provided in the question context.
+
+Reply with ONLY one of these tokens:
+  VALID         — question can be answered from the schema and targets the user's own department 
+                  or no specific department
+  INVALID       — question is off-topic, incoherent, or references data not in the schema
+  CROSS_DEPT    — question explicitly asks about a different department than the session department
+  DISCLAIMER    — question is valid but uses broad language (e.g. "all employees", "total salary", 
+                  "everyone", "company-wide") that implies company-wide scope but will only return 
+                  session-department data
 """
+
 
 class QueryValidationGuardrail(BaseGuardrail):
     """
-    Layer 0 — pre-generation question validity check.
+    Layer 0 — pre-generation question validity + scope check.
 
-    Classifies the user question as VALID or INVALID before any SQL is generated.
-    INVALID → sets final_error with a fixed user-facing message; graph exits immediately.
-    VALID   → PASS; generation proceeds normally.
+    Verdicts:
+      VALID       → proceed normally
+      INVALID     → block with user-facing message, no retry
+      CROSS_DEPT  → block with access-denied message, no retry
+      DISCLAIMER  → proceed, but flag needs_disclaimer=True in result metadata
     Fails open on API errors so transient failures don't block users.
     """
 
@@ -42,19 +59,31 @@ class QueryValidationGuardrail(BaseGuardrail):
         if not question:
             return self._reject("", INVALID_QUERY_MESSAGE, metadata={"reason": "empty_question"})
 
+        # Embed session department so the model can detect cross-dept references
+        user_content = f"Session department: {ctx.department}\nQuestion: {question}"
+
         try:
             response = self._client.messages.create(
                 model=self._model,
                 max_tokens=10,
                 system=_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": question}],
+                messages=[{"role": "user", "content": user_content}],
             )
             verdict = response.content[0].text.strip().upper()
         except Exception as exc:
-            # Fail open — don't block the user on a transient API error
             return self._pass(ctx.sql, metadata={"validation_skipped": str(exc)})
 
-        if verdict != "VALID":
+        if verdict == "INVALID":
             return self._reject("", INVALID_QUERY_MESSAGE, metadata={"verdict": verdict})
 
+        if verdict == "CROSS_DEPT":
+            msg = CROSS_DEPT_MESSAGE.format(dept=ctx.department)
+            return self._reject("", msg, metadata={"verdict": verdict})
+
+        if verdict == "DISCLAIMER":
+            print("Disclaimer should be printed !!!!")
+            # Pass through but signal that display should add a scope note
+            return self._pass(ctx.sql, metadata={"needs_disclaimer": True})
+
+        # VALID or unexpected token — fail open
         return self._pass(ctx.sql)

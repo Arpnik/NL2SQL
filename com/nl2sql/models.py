@@ -38,6 +38,7 @@ class AgentState(TypedDict):
     sql: str
     attempt: int
     rows: list[dict[str, Any]]
+    needs_disclaimer: bool
 
     # Error tracking
     last_rejection_reason: str | None

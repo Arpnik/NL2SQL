@@ -3,6 +3,9 @@ from __future__ import annotations
 import logging
 import sys
 
+from prompt_toolkit import prompt
+from prompt_toolkit.history import FileHistory
+from rich import print
 from com.nl2sql.db_session_manager import SessionManager
 from com.nl2sql.pipeline import Pipeline
 from com.nl2sql.settings import Settings
@@ -16,6 +19,7 @@ Run:
 Exit:
     Type 'exit' or 'quit', or press Ctrl+C.
 """
+
 
 def _configure_logging(log_level: str) -> None:
     logging.basicConfig(
@@ -47,10 +51,15 @@ def main() -> None:
     # ── REPL ──────────────────────────────────────────────────────────────────
     print("\nType your question and press Enter. Type 'exit' to quit.\n")
 
+    history = FileHistory(".query_history")
+
     try:
         while True:
             try:
-                question = input("You: ").strip()
+                question = prompt(
+                    "You: ",
+                    history=history,
+                ).strip()
             except EOFError:
                 break
 
