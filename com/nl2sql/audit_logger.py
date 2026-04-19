@@ -77,5 +77,5 @@ class AuditLogger:
 
         # Mirror blocked requests to console for visibility during demo
         if status == GuardrailStatus.REJECT:
-            print(f"[red][AUDIT BLOCK] layer={layer} attempt={attempt} "
+            logger.error(f"[red][AUDIT BLOCK] layer={layer} attempt={attempt} "
                 f"dept={department} reason={reason!r} [/red]")

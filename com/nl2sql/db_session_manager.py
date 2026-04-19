@@ -131,9 +131,12 @@ class SessionManager:
     # ── Private ───────────────────────────────────────────────────────────────
 
     def _log_startup(self) -> None:
-        print(f"[cyan][INFO] Session ID    : {self._session_id}[/cyan]")
-        print(f"[cyan][INFO] Department selected: {self._department.value.upper()}[/cyan]")
-        print(f"[cyan][INFO] Started at    : "
+        print(f"\n[cyan]{'─' * 50}[/cyan]\n")
+        print("[cyan] Session Information[/cyan]")
+        print(f"\n[cyan]{'─' * 50}[/cyan]\n")
+        print(f"[cyan] Session ID    : {self._session_id}[/cyan]")
+        print(f"[cyan] Department    : {self._department.value.upper()}[/cyan]")
+        print(f"[cyan] Started at    : "
               f"{self._started_at.strftime('%Y-%m-%d %H:%M:%S')} [/cyan]")
 
 
