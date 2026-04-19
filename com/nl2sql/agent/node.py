@@ -77,7 +77,8 @@ def generate_sql_node(
     ctx = _make_ctx(state)
 
     system_prompt = prompt_guard.build_system_prompt(
-        ctx, rejection_reason=state.get("last_rejection_reason", "")
+        ctx, rejection_reason=state.get("last_rejection_reason", ""), sql_error=state.get("sql_error"),
+        last_sql=state.get("sql", ""),
     )
 
     settings = state["settings"]
@@ -177,7 +178,12 @@ def execute_sql_node(state: dict, audit: AuditLogger) -> dict:
         error_msg = f"SQL execution error: {exc}"
         logger.error("[execute_sql] %s", error_msg)
         _audit(audit, "ExecuteSQLNode", GuardrailStatus.REJECT, state, sql, error_msg)
-        return {"final_error": error_msg, "rows": []}
+        return {
+            "final_error": None,
+            "rows": [],
+            "sql_error": error_msg,  # ← new
+            "last_rejection_reason": error_msg,  # ← triggers retry loop
+        }
 
     logger.info("[execute_sql] Returned %d row(s)", len(rows))
     _audit(audit, "ExecuteSQLNode", GuardrailStatus.PASS, state, sql)

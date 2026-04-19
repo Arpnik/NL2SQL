@@ -42,6 +42,7 @@ class AgentState(TypedDict):
     # Error tracking
     last_rejection_reason: str | None
     final_error: str | None             # set when max_retries exhausted
+    sql_error: str | None
 
     # Injected dependencies (set once at graph entry)
     settings: Settings

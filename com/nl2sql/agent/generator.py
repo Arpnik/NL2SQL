@@ -69,6 +69,13 @@ def _route_after_query_validation(state: AgentState) -> str:
         return "end"
     return "generate_sql"
 
+def _route_after_execute(state: AgentState) -> str:
+    if state.get("last_rejection_reason") and not state.get("rows"):
+        if state["attempt"] > state["settings"].max_retries + 1:
+            return "end"
+        return "generate_sql"
+    return "output_guard"
+
 
 def build_graph(settings: Settings) -> StateGraph:
     """
@@ -142,8 +149,11 @@ def build_graph(settings: Settings) -> StateGraph:
         {"next": "execute_sql", "generate_sql": "generate_sql", "end": END},
     )
 
-    builder.add_edge("execute_sql", "output_guard")
-
+    builder.add_conditional_edges(
+        "execute_sql",
+        _route_after_execute,
+        {"generate_sql": "generate_sql", "output_guard": "output_guard", "end": END},
+    )
     builder.add_conditional_edges(
         "output_guard",
         _route_after_output_guard,

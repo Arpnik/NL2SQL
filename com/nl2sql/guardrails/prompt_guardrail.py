@@ -96,7 +96,8 @@ class PromptGuardrail(BaseGuardrail):
     Call build_system_prompt() from the LangGraph generation node.
     """
 
-    def build_system_prompt(self, ctx: GuardrailContext, rejection_reason: str = "") -> str:
+    def build_system_prompt(self, ctx: GuardrailContext, rejection_reason: str = "", sql_error: str | None = None,
+        last_sql: str = "") -> str:
         dept = ctx.department
         examples_block = "\n\n".join(
             f"Q: {ex['question']}\nSQL:\n{ex['sql'].format(dept=dept)}"
@@ -108,8 +109,16 @@ class PromptGuardrail(BaseGuardrail):
             retry_block = (
                 f"\n\nWARNING — YOUR PREVIOUS SQL WAS REJECTED.\n"
                 f"Reason: {rejection_reason}\n"
+            )
+            if sql_error and last_sql:
+                retry_block += (
+                    f"\nThe following SQL caused a runtime error:\n"
+                    f"{last_sql}\n"
+                    f"SQLite error: {sql_error}\n"
+                )
+            retry_block += (
                 f"You MUST fix this before responding. "
-                f"The WHERE e.Department = '{dept}' clause is non-negotiable."
+                f"The WHERE e.Department = '{ctx.department}' clause is non-negotiable."
             )
 
         return f"""You are a precise SQL assistant for a SQLite employee database.
