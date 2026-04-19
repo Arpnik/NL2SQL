@@ -38,11 +38,6 @@ class Settings(BaseSettings):
       1. Real environment variables (e.g. set in Docker / CI)
       2. Values in the .env file
       3. Defaults declared here
-
-    Usage:
-        settings = Settings()
-        print(settings.anthropic_api_key)
-        print(settings.department)          # None → SessionManager picks randomly
     """
 
     model_config = SettingsConfigDict(

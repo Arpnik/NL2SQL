@@ -34,7 +34,7 @@ def main() -> None:
     try:
         settings = Settings()
     except Exception as exc:
-        print(f"[FATAL] Configuration error: {exc}", file=sys.stderr)
+        print(f"[red][FATAL] Configuration error: {exc} [/red]", file=sys.stderr)
         sys.exit(1)
 
     _configure_logging(settings.log_level)
@@ -45,12 +45,12 @@ def main() -> None:
     try:
         pipeline = Pipeline(session=session, settings=settings)
     except Exception as exc:
-        print(f"[FATAL] Pipeline initialisation failed: {exc}", file=sys.stderr)
+        print(f"[red][FATAL] Pipeline initialisation failed: {exc} [/red]", file=sys.stderr)
         session.close()
         sys.exit(1)
 
     # ── REPL ──────────────────────────────────────────────────────────────────
-    print("\nType your question and press Enter. Type 'exit' to quit.\n")
+    print("\n[cyan]Type your question and press Enter. Type 'exit' to quit.[/cyan]\n")
 
     history = FileHistory(".query_history")
 
@@ -74,7 +74,7 @@ def main() -> None:
             print(result.display())
 
     except KeyboardInterrupt:
-        print("\n[INFO] Interrupted.")
+        print("\n[/yellow][INFO] Interrupted.[/yellow]")
 
     finally:
         pipeline.shutdown()

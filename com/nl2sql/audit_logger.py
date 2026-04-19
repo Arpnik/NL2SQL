@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from rich import print
 
 from com.nl2sql.guardrails.base import GuardrailStatus
 
@@ -75,7 +76,5 @@ class AuditLogger:
 
         # Mirror blocked requests to console for visibility during demo
         if status == GuardrailStatus.REJECT:
-            print(
-                f"[AUDIT BLOCK] layer={layer} attempt={attempt} "
-                f"dept={department} reason={reason!r}"
-            )
+            print(f"[red][AUDIT BLOCK] layer={layer} attempt={attempt} "
+                f"dept={department} reason={reason!r} [/red]")
