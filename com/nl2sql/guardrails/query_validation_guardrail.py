@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from anthropic import Anthropic
-from rich import console
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 from com.nl2sql.settings import Settings

@@ -6,6 +6,7 @@ import sys
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 from rich import print
+
 from com.nl2sql.db_session_manager import SessionManager
 from com.nl2sql.pipeline import Pipeline
 from com.nl2sql.settings import Settings
