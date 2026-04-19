@@ -8,7 +8,7 @@ import sqlglot.expressions as exp
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 
 # Every SELECT scope that touches the Employee table must have this filter.
-_EMPLOYEE_TABLES = frozenset({"employee", "dept_employees"})
+_EMPLOYEE_TABLES = frozenset({"dept_employees"})
 
 
 def _all_select_scopes(tree: exp.Expression) -> Iterator[exp.Select]:

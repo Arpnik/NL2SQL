@@ -54,8 +54,9 @@ class QueryResult:
     def display(self) -> str:
         """Pretty-print the result for the console."""
         lines = []
-        if self.sql and self.sql.length>0:
+        if self.sql and self.sql.strip() and not self.error:
             lines.append(f"\n[magenta][SQL]\n{self.sql}[/magenta]\n")
+
         if self.error:
             lines.append(f"[red][ERROR] {self.error}[/red]")
             return "\n".join(lines)
