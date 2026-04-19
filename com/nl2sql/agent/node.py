@@ -40,6 +40,7 @@ def _make_ctx(state: dict) -> GuardrailContext:
         department=state["department"],
         session_id=state["session_id"],
         attempt=state.get("attempt", 1),
+        user_question=state.get("user_question", ""),
     )
 
 def _audit(
@@ -210,22 +211,26 @@ def query_validation_node(
 ) -> dict:
     """
     Layer 0 node — validates the user question before any SQL generation.
-    On INVALID: sets final_error with the fixed user-facing message.
+    On REJECT: sets final_error with the fixed user-facing message.
     The graph router sees final_error and exits immediately — no retry.
     """
-    ctx = GuardrailContext(
-        sql="",
-        department=state["department"],
-        session_id=state["session_id"],
-        attempt=state["attempt"],
-        user_question=state["user_question"],
-    )
+    ctx = _make_ctx(state)      # ← use the shared helper, not a manual constructor
     result = guardrail.validate(ctx)
-    audit.log("query_validation", state["session_id"], result)
 
-    if result.status != "PASS":
+    _audit(                     # ← use the shared helper, not audit.log directly
+        audit,
+        result.layer,
+        result.status,
+        state,
+        result.sql,
+        result.reason,
+        result.metadata,
+    )
+
+    if result.rejected:         # ← use the property, not string comparison
         return {
             "final_error": INVALID_QUERY_MESSAGE,
             "last_rejection_reason": result.reason,
         }
+
     return {"last_rejection_reason": None}

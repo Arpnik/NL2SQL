@@ -3,6 +3,7 @@ from __future__ import annotations
 from anthropic import Anthropic
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
+from com.nl2sql.settings import Settings
 
 INVALID_QUERY_MESSAGE = (
     "Your question doesn't appear to be answerable from the employee database. "
@@ -32,9 +33,9 @@ class QueryValidationGuardrail(BaseGuardrail):
     Fails open on API errors so transient failures don't block users.
     """
 
-    def __init__(self, model: str = "claude-haiku-4-5-20251001") -> None:
-        self._client = Anthropic()
-        self._model = model
+    def __init__(self, settings: Settings) -> None:
+        self._client = Anthropic(api_key=settings.anthropic_api_key)
+        self._model = settings.query_validation_model
 
     def validate(self, ctx: GuardrailContext) -> GuardrailResult:
         question = ctx.user_question.strip()

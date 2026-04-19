@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
-from dbm import sqlite3
-from enum import StrEnum
 from typing import Any, TypedDict
+import sqlite3
 
 from com.nl2sql.audit_logger import AuditLogger
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
@@ -12,12 +11,7 @@ from com.nl2sql.guardrails.query_validation_guardrail import QueryValidationGuar
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
 from com.nl2sql.settings import Settings
-
-
-class Department(StrEnum):
-    SALES = "Sales"
-    MARKETING = "Marketing"
-    ENGINEERING = "Engineering"
+from com.nl2sql.types import Department
 
 
 @dataclass(frozen=True)
@@ -38,7 +32,7 @@ class AgentState(TypedDict):
     user_question: str
     department: str
     session_id: str
-    connection: sqlite3.Connection          # passed by reference — not serialised
+    connection: sqlite3.Connection
 
     # Mutable state updated by nodes
     sql: str
