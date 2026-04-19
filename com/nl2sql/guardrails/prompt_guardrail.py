@@ -96,7 +96,8 @@ class PromptGuardrail(BaseGuardrail):
     Call build_system_prompt() from the LangGraph generation node.
     """
 
-    def build_system_prompt(self, ctx: GuardrailContext, rejection_reason: str = "", sql_error: str | None = None,
+    def build_system_prompt(self, ctx: GuardrailContext, rejection_reason: str = "",
+                            sql_error: str | None = None,
         last_sql: str = "") -> str:
         dept = ctx.department
         examples_block = "\n\n".join(

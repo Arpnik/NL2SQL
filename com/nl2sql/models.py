@@ -1,7 +1,7 @@
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, TypedDict
-import sqlite3
 
 from com.nl2sql.audit_logger import AuditLogger
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail

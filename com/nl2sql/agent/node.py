@@ -77,7 +77,8 @@ def generate_sql_node(
     ctx = _make_ctx(state)
 
     system_prompt = prompt_guard.build_system_prompt(
-        ctx, rejection_reason=state.get("last_rejection_reason", ""), sql_error=state.get("sql_error"),
+        ctx, rejection_reason=state.get("last_rejection_reason", ""),
+        sql_error=state.get("sql_error"),
         last_sql=state.get("sql", ""),
     )
 
