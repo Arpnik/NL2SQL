@@ -3,6 +3,10 @@ from __future__ import annotations
 import logging
 import sys
 
+from prompt_toolkit import prompt
+from prompt_toolkit.history import FileHistory
+from rich import print
+
 from com.nl2sql.db_session_manager import SessionManager
 from com.nl2sql.pipeline import Pipeline
 from com.nl2sql.settings import Settings
@@ -17,6 +21,7 @@ Exit:
     Type 'exit' or 'quit', or press Ctrl+C.
 """
 
+
 def _configure_logging(log_level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
@@ -29,7 +34,7 @@ def main() -> None:
     try:
         settings = Settings()
     except Exception as exc:
-        print(f"[FATAL] Configuration error: {exc}", file=sys.stderr)
+        print(f"[red][FATAL] Configuration error: {exc} [/red]", file=sys.stderr)
         sys.exit(1)
 
     _configure_logging(settings.log_level)
@@ -40,17 +45,22 @@ def main() -> None:
     try:
         pipeline = Pipeline(session=session, settings=settings)
     except Exception as exc:
-        print(f"[FATAL] Pipeline initialisation failed: {exc}", file=sys.stderr)
+        print(f"[red][FATAL] Pipeline initialisation failed: {exc} [/red]", file=sys.stderr)
         session.close()
         sys.exit(1)
 
     # ── REPL ──────────────────────────────────────────────────────────────────
-    print("\nType your question and press Enter. Type 'exit' to quit.\n")
+    print("\n[cyan]Type your question and press Enter. Type 'exit' to quit.[/cyan]\n")
+
+    history = FileHistory(".query_history")
 
     try:
         while True:
             try:
-                question = input("You: ").strip()
+                question = prompt(
+                    "You: ",
+                    history=history,
+                ).strip()
             except EOFError:
                 break
 
@@ -61,10 +71,10 @@ def main() -> None:
                 break
 
             result = pipeline.run(question)
-            print(result.display())
+            print(f"[green]{result.display()}[/green]")
 
     except KeyboardInterrupt:
-        print("\n[INFO] Interrupted.")
+        print("\n[cyan] Interrupted.[/cyan]")
 
     finally:
         pipeline.shutdown()

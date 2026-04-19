@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from rich import print
+
 from com.nl2sql.models import Department, SessionState
 from com.nl2sql.settings import Settings
 
@@ -127,9 +129,10 @@ class SessionManager:
     # ── Private ───────────────────────────────────────────────────────────────
 
     def _log_startup(self) -> None:
-        print(f"[INFO] Session ID    : {self._session_id}")
-        print(f"[INFO] Department selected: {self._department.value}")
-        print(f"[INFO] Started at    : {self._started_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[yellow][INFO] Session ID    : {self._session_id}[/yellow]")
+        print(f"[yellow][INFO] Department selected: {self._department.value}[/yellow]")
+        print(f"[yellow][INFO] Started at    : "
+              f"{self._started_at.strftime('%Y-%m-%d %H:%M:%S')} [/yellow]")
 
 
     def _create_db_connection(self) -> sqlite3.Connection:

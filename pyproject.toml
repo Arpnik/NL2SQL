@@ -6,21 +6,30 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    #Langgraph for agent orchestration and ReAct loop management
+    # Langgraph for agent orchestration and ReAct loop management
     "langgraph>=0.2.0",
+
     # LLM provider
     "anthropic>=0.40.0",
+
     # SQL parsing and AST validation (Layer 3)
     "sqlglot>=25.0.0",
+
     # SQLite is stdlib — no package needed but we use aiosqlite for async support
-    #    "aiosqlite>=0.20.0",
+    # "aiosqlite>=0.20.0",
+
     # Output formatting for console tables
     "rich>=13.9.0",
+
     # Environment variable management
     "python-dotenv>=1.0.0",
+
     # Type hints and data validation
     "pydantic>=2.9.0",
     "pydantic-settings>=2.13.1",
+
+    # Interactive CLI input (history + arrow keys)
+    "prompt-toolkit>=3.0.43",
 ]
 
 [project.optional-dependencies]

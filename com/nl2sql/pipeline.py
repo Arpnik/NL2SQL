@@ -45,6 +45,7 @@ class QueryResult:
     error: str | None
     attempt_count: int
     department: str
+    needs_disclaimer: bool = False
 
     @property
     def success(self) -> bool:
@@ -52,35 +53,42 @@ class QueryResult:
 
     def display(self) -> str:
         """Pretty-print the result for the console."""
-        lines = [f"\n[SQL]\n{self.sql}\n"]
+        lines = [f"\n[magenta][SQL]\n{self.sql}[/magenta]\n"]
 
         if self.error:
-            lines.append(f"[ERROR] {self.error}")
+            lines.append(f"[red][ERROR] {self.error}[/red]")
             return "\n".join(lines)
 
         if not self.rows:
             lines.append("[RESULT] No rows returned.")
-            return "\n".join(lines)
+        else:
+            # Build a simple aligned table
+            headers = list(self.rows[0].keys())
+            col_widths = {h: len(h) for h in headers}
+            for row in self.rows:
+                for h in headers:
+                    col_widths[h] = max(col_widths[h], len(str(row.get(h, ""))))
 
-        # Build a simple aligned table
-        headers = list(self.rows[0].keys())
-        col_widths = {h: len(h) for h in headers}
-        for row in self.rows:
-            for h in headers:
-                col_widths[h] = max(col_widths[h], len(str(row.get(h, ""))))
+            sep = "  ".join("-" * col_widths[h] for h in headers)
+            header_row = "  ".join(h.ljust(col_widths[h]) for h in headers)
 
-        sep = "  ".join("-" * col_widths[h] for h in headers)
-        header_row = "  ".join(h.ljust(col_widths[h]) for h in headers)
+            lines.append("[RESULT]")
+            lines.append(header_row)
+            lines.append(sep)
+            for row in self.rows:
+                lines.append(
+                    "  ".join(str(row.get(h, "")).ljust(col_widths[h]) for h in headers)
+                )
+            lines.append(f"\n{len(self.rows)} row(s) | department: {self.department}")
 
-        lines.append("[RESULT]")
-        lines.append(header_row)
-        lines.append(sep)
-        for row in self.rows:
+        if self.needs_disclaimer:
             lines.append(
-                "  ".join(str(row.get(h, "")).ljust(col_widths[h]) for h in headers)
+                f"[yellow]\n⚠  Note: Results are scoped to the {self.department} department only. "
+                f"You do not have access to other departments.[/yellow]"
             )
-        lines.append(f"\n{len(self.rows)} row(s) | department: {self.department}")
+
         return "\n".join(lines)
+
 
 
 class Pipeline:
@@ -147,6 +155,7 @@ class Pipeline:
             "ast_guardrail": ASTGuardrail(),
             "view_guardrail": ViewGuardrail(),
             "output_guardrail": OutputGuardrail(),
+            "needs_disclaimer": False,
         }
 
         logger.info(
@@ -158,7 +167,7 @@ class Pipeline:
         error = final_state.get("final_error")
         rows = final_state.get("rows", [])
         sql = final_state.get("sql", "")
-        attempt_count = final_state.get("attempt", 1) - 1  # undo pre-increment
+        attempt_count = final_state.get("attempt", 1) - 1
 
         result = QueryResult(
             question=question,
@@ -167,9 +176,9 @@ class Pipeline:
             error=error,
             attempt_count=attempt_count,
             department=dept,
+            needs_disclaimer=final_state.get("needs_disclaimer", False),
         )
 
-        # Update session counters
         if result.success:
             self._session.record_query()
         else:

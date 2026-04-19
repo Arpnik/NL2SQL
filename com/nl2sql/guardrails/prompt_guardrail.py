@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 
-# Few-shot examples — every example SQL has the department filter.
-# These are injected into the system prompt so the LLM sees the pattern clearly.
+# Few-shot examples
 _FEW_SHOT_EXAMPLES = [
     {
         "question": "Who are the software engineers?",
@@ -19,35 +18,6 @@ _FEW_SHOT_EXAMPLES = [
             "SELECT AVG(e.SalaryAmount) AS avg_salary "
             "FROM dept_employees e "
             "WHERE e.Department = '{dept}'"
-        ),
-    },
-    {
-        "question": "Which employees have an AWS certification?",
-        "sql": (
-            "SELECT e.Name, c.CertificationName, c.DateAchieved "
-            "FROM dept_employees e "
-            "JOIN dept_certifications c ON c.EmployeeId = e.EmployeeId "
-            "WHERE e.Department = '{dept}' AND c.CertificationName LIKE '%AWS%'"
-        ),
-    },
-    {
-        "question": "Who has the highest remaining benefits balance?",
-        "sql": (
-            "SELECT e.Name, b.BenefitsPackage, b.RemainingBalance "
-            "FROM dept_employees e "
-            "JOIN dept_benefits b ON b.EmployeeId = e.EmployeeId "
-            "WHERE e.Department = '{dept}' "
-            "ORDER BY b.RemainingBalance DESC "
-            "LIMIT 1"
-        ),
-    },
-    {
-        "question": "List employees who started after 2023 and their certifications",
-        "sql": (
-            "SELECT e.Name, e.EmploymentStartDate, c.CertificationName "
-            "FROM dept_employees e "
-            "LEFT JOIN dept_certifications c ON c.EmployeeId = e.EmployeeId "
-            "WHERE e.Department = '{dept}' AND e.EmploymentStartDate > '2023-01-01'"
         ),
     },
 ]
