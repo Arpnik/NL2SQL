@@ -11,6 +11,7 @@ from com.nl2sql.db_view_manager import DatabaseViewManager
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
 from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
+from com.nl2sql.guardrails.query_validation_guardrail import QueryValidationGuardrail
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
 from com.nl2sql.settings import Settings
@@ -99,6 +100,7 @@ class Pipeline:
 
         # Compile graph once — reused for every query in the session
         self._graph = build_graph(settings)
+        self._query_validation_guardrail = QueryValidationGuardrail()
 
         # Ensure DB views are ready before any query runs
         #create a separate write session since we need to generate the views before read session
@@ -142,6 +144,7 @@ class Pipeline:
             "settings": self._settings,
             "audit_logger": self._audit,
             # Guardrail instances — created fresh per run so state is clean
+            "query_validation_guardrail": self._query_validation_guardrail,
             "prompt_guardrail": PromptGuardrail(),
             "schema_guardrail": SchemaGuardrail(),
             "ast_guardrail": ASTGuardrail(),

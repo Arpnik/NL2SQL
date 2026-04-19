@@ -9,7 +9,7 @@ _FEW_SHOT_EXAMPLES = [
         "question": "Who are the software engineers?",
         "sql": (
             "SELECT e.Name, e.Role "
-            "FROM Employee e "
+            "FROM dept_employees e "
             "WHERE e.Department = '{dept}' AND e.Role LIKE '%Engineer%'"
         ),
     },
@@ -17,7 +17,7 @@ _FEW_SHOT_EXAMPLES = [
         "question": "What is the average salary?",
         "sql": (
             "SELECT AVG(e.SalaryAmount) AS avg_salary "
-            "FROM Employee e "
+            "FROM dept_employees e "
             "WHERE e.Department = '{dept}'"
         ),
     },
@@ -25,8 +25,8 @@ _FEW_SHOT_EXAMPLES = [
         "question": "Which employees have an AWS certification?",
         "sql": (
             "SELECT e.Name, c.CertificationName, c.DateAchieved "
-            "FROM Employee e "
-            "JOIN Certification c ON c.EmployeeId = e.EmployeeId "
+            "FROM dept_employees e "
+            "JOIN dept_certifications c ON c.EmployeeId = e.EmployeeId "
             "WHERE e.Department = '{dept}' AND c.CertificationName LIKE '%AWS%'"
         ),
     },
@@ -34,8 +34,8 @@ _FEW_SHOT_EXAMPLES = [
         "question": "Who has the highest remaining benefits balance?",
         "sql": (
             "SELECT e.Name, b.BenefitsPackage, b.RemainingBalance "
-            "FROM Employee e "
-            "JOIN Benefits b ON b.EmployeeId = e.EmployeeId "
+            "FROM dept_employees e "
+            "JOIN dept_benefits b ON b.EmployeeId = e.EmployeeId "
             "WHERE e.Department = '{dept}' "
             "ORDER BY b.RemainingBalance DESC "
             "LIMIT 1"
@@ -45,8 +45,8 @@ _FEW_SHOT_EXAMPLES = [
         "question": "List employees who started after 2023 and their certifications",
         "sql": (
             "SELECT e.Name, e.EmploymentStartDate, c.CertificationName "
-            "FROM Employee e "
-            "LEFT JOIN Certification c ON c.EmployeeId = e.EmployeeId "
+            "FROM dept_employees e "
+            "LEFT JOIN dept_certifications c ON c.EmployeeId = e.EmployeeId "
             "WHERE e.Department = '{dept}' AND e.EmploymentStartDate > '2023-01-01'"
         ),
     },
@@ -55,7 +55,7 @@ _FEW_SHOT_EXAMPLES = [
 _SCHEMA_BLOCK = """
 Database schema (SQLite):
 
-Table: Employee
+View: dept_employees
   EmployeeId        INTEGER  PRIMARY KEY
   Name              TEXT     NOT NULL
   Department        TEXT     NOT NULL  -- always filtered to the session department
@@ -64,15 +64,15 @@ Table: Employee
   SalaryAmount      REAL     NOT NULL
   YearlyBonusAmount REAL
 
-Table: Certification
+View: dept_certifications
   CertificationId   INTEGER  PRIMARY KEY
-  EmployeeId        INTEGER  FK -> Employee(EmployeeId)
+  EmployeeId        INTEGER  FK -> dept_employees(EmployeeId)
   CertificationName TEXT     NOT NULL
   DateAchieved      TEXT     NOT NULL  (format: YYYY-MM-DD)
 
-Table: Benefits
+View: dept_benefits
   BenefitId         INTEGER  PRIMARY KEY
-  EmployeeId        INTEGER  FK -> Employee(EmployeeId)
+  EmployeeId        INTEGER  FK -> dept_employees(EmployeeId)
   BenefitsPackage   TEXT     NOT NULL
   RemainingBalance  REAL     NOT NULL
 

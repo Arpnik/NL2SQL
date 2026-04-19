@@ -11,8 +11,13 @@ from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
 from com.nl2sql.guardrails.base import GuardrailContext, GuardrailStatus
 from com.nl2sql.guardrails.output_guardrail import OutputGuardrail
 from com.nl2sql.guardrails.prompt_guardrail import PromptGuardrail
+from com.nl2sql.guardrails.query_validation_guardrail import (
+    INVALID_QUERY_MESSAGE,
+    QueryValidationGuardrail,
+)
 from com.nl2sql.guardrails.schema_guardrail import SchemaGuardrail
 from com.nl2sql.guardrails.view_guardrail import ViewGuardrail
+from com.nl2sql.models import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -197,3 +202,30 @@ def output_guard_node(
         }
 
     return {"rows": clean_rows, "final_error": None, "last_rejection_reason": None}
+
+def query_validation_node(
+    state: AgentState,
+    guardrail: QueryValidationGuardrail,
+    audit: AuditLogger,
+) -> dict:
+    """
+    Layer 0 node — validates the user question before any SQL generation.
+    On INVALID: sets final_error with the fixed user-facing message.
+    The graph router sees final_error and exits immediately — no retry.
+    """
+    ctx = GuardrailContext(
+        sql="",
+        department=state["department"],
+        session_id=state["session_id"],
+        attempt=state["attempt"],
+        user_question=state["user_question"],
+    )
+    result = guardrail.validate(ctx)
+    audit.log("query_validation", state["session_id"], result)
+
+    if result.status != "PASS":
+        return {
+            "final_error": INVALID_QUERY_MESSAGE,
+            "last_rejection_reason": result.reason,
+        }
+    return {"last_rejection_reason": None}
