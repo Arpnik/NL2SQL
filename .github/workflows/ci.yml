@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [*]
 
 jobs:
   test:
@@ -19,7 +19,7 @@ jobs:
         run: pip install uv
 
       - name: Install deps
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Ruff
         run: uv run ruff check .
