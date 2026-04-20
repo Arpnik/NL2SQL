@@ -25,7 +25,7 @@ query_validation_model=claude-haiku-4-5-20251001
 ```
 
 The `llm_model`, `database_path`, and `query_validation_model` values above are the defaults — you only need to set `ANTHROPIC_API_KEY` to get started.
-
+> **Note:** The `.env` file should be present under main directory (with the docker file) — replace the value of `ANTHROPIC_API_KEY` with your own key before running. You can obtain a key at [console.anthropic.com](https://console.anthropic.com/). The key is read at container startup and never logged or transmitted anywhere other than the Anthropic API.
 3. Run the application:
 
 ```bash
