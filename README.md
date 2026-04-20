@@ -109,6 +109,7 @@ Layer 5  — Output guardrail             (row-level sentinel scan)
     ↓
 Results displayed
 ```
+<img src="images/arch.png" width="700" height="350" alt="Demo">
 
 Rejected SQL is fed back to the LLM with a detailed rejection reason, allowing the model to self-correct before the next attempt.
 
