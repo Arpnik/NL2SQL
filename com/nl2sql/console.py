@@ -21,6 +21,27 @@ Exit:
     Type 'exit' or 'quit', or press Ctrl+C.
 """
 
+def _print_banner(department: str) -> None:
+    dept_colors = {
+        "Engineering": "cyan",
+        "Sales":       "green",
+        "Marketing":   "magenta",
+    }
+    color = dept_colors.get(department, "white")
+    dept_styled = f"[bold {color}]{department}[/bold {color}]"
+
+    print(f"""\
+[bold white]╔═══════════════════════════════════════════╗[/bold white]
+[bold white]║[/bold white]  [bold cyan]NL2SQL[/bold cyan] [dim]· Natural Language Query Agent[/dim]    [bold white]║[/bold white]
+[bold white]╚═══════════════════════════════════════════╝[/bold white]
+
+  [dim]Database :[/dim]  employees.db
+  [dim]Models   :[/dim]  claude-sonnet [dim]·[/dim] claude-haiku
+  [dim]Session  :[/dim]  {dept_styled}
+
+  [dim]Ask anything about employees, certifications,[/dim]
+  [dim]or benefits. Type[/dim] [bold]exit[/bold] [dim]to quit.[/dim]
+""")
 
 def _configure_logging(log_level: str) -> None:
     logging.basicConfig(
@@ -51,7 +72,7 @@ def main() -> None:
         sys.exit(1)
 
     # ── REPL ──────────────────────────────────────────────────────────────────
-    print("\n[cyan]Type your question and press Enter. Type 'exit' to quit.[/cyan]\n")
+    _print_banner(session.department.value)
 
     history = FileHistory(".query_history")
 
