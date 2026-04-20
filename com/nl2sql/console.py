@@ -21,6 +21,7 @@ Exit:
     Type 'exit' or 'quit', or press Ctrl+C.
 """
 
+# ruff: noqa: E501
 def _print_banner(department: str) -> None:
     dept_colors = {
         "Engineering": "cyan",
@@ -32,7 +33,7 @@ def _print_banner(department: str) -> None:
 
     print(f"""\
 [bold white]╔═══════════════════════════════════════════╗[/bold white]
-[bold white]║[/bold white]  [bold cyan]NL2SQL[/bold cyan] [dim]· Natural Language Query Agent[/dim]    [bold white]║[/bold white]
+[bold white]║[/bold white]  [bold cyan]NL2SQL[/bold cyan] [dim]· Natural Language Query Agent[/dim]    [bold white]║[/bold white] 
 [bold white]╚═══════════════════════════════════════════╝[/bold white]
 
   [dim]Database :[/dim]  employees.db
