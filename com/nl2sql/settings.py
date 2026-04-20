@@ -59,11 +59,6 @@ class Settings(BaseSettings):
         description="Anthropic model string used for SQL generation.",
     )
 
-    llm_judge_model: str = Field(
-        default="claude-sonnet-4-20250514",
-        description="Model used for the semantic LLM Judge check (Layer 3.5).",
-    )
-
     query_validation_model: str = Field(
         default="claude-haiku-4-5-20251001",
         description="Model used for checking if the user query is a valid ask "
@@ -200,7 +195,7 @@ class Settings(BaseSettings):
             f"{'─' * 50}\n"
             f"  API Key      : {key_preview}\n"
             f"  Model        : {self.llm_model}\n"
-            f"  Judge Model  : {self.llm_judge_model}\n"
+            f"  Query Model  : {self.query_validation_model}\n"
             f"  Department   : {dept_display}\n"
             f"  Database     : {self.database_path}\n"
             f"  Read-only DB : {self.database_read_only}\n"
