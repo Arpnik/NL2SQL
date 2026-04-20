@@ -75,7 +75,11 @@ You: exit
 ## Running Tests
 
 ```bash
-docker compose run --rm nl2sql pytest tests/
+pip install uv
+uv venv nl2sql
+source nl2sql/bin/activate 
+uv pip install -e ".[dev]"
+uv run pytest
 ```
 
 ---
@@ -84,7 +88,7 @@ docker compose run --rm nl2sql pytest tests/
 
 ### Overview
 
-The application is a **single-pass LangGraph pipeline** with a structured retry loop. On each user question, the pipeline runs through six guardrail layers sequentially. Any layer can reject the generated SQL and trigger a retry (up to a configurable maximum). If the retry budget is exhausted, the query is blocked and the user receives an error message.
+The application is a **LangGraph pipeline** with a structured retry loop. On each user question, the pipeline runs through six guardrail layers sequentially. Any layer can reject the generated SQL and trigger a retry (up to a configurable maximum). If the retry budget is exhausted, the query is blocked and the user receives an error message.
 
 ```
 User question
@@ -207,7 +211,7 @@ This application is explicitly read-only by design. The reasons are:
 - **Safety**: write operations carry disproportionate risk. A hallucinated `UPDATE` or `DELETE` could corrupt data irreversibly. Confining the system to `SELECT` eliminates this class of failure entirely.
 - **Auditability**: read-only queries are safe to retry automatically. Write operations are not idempotent, so automatic retries would require transactions, rollback logic, and conflict resolution — significant added complexity for no benefit in this use case.
 
-Layer 0 blocks write-intent questions before SQL is ever generated. The read-only database connection provides a second enforcement at the database level.
+Query validation and schema guard blocks write-intent questions before SQL is ever generated. The read-only database connection provides a second enforcement at the database level.
 
 ### Why a pipeline, not a multi-agent system?
 
@@ -223,11 +227,9 @@ The query validation guardrail (Layer 0) is a simple classification task with fi
 
 SQL generation is more demanding: it requires understanding the schema, respecting constraints, and producing syntactically valid SQL. `claude-sonnet` offers a better accuracy/cost tradeoff for this task.
 
-### Why not PostgreSQL Row-Level Security instead of SQLite views?
+### Why views instead of database-native row-level access control?
 
-PostgreSQL RLS provides database-native, policy-enforced row filtering that cannot be bypassed even by direct database connections. It is the strongest possible enforcement mechanism for production multi-tenant systems.
-
-For this project, SQLite was specified and does not support RLS. The view-based approach is the closest equivalent: the views are the only surface exposed to the LLM, they enforce the department filter by construction, and the AST guardrail ensures the LLM cannot reference raw tables. In a production setting on PostgreSQL, RLS would be the preferred approach and the view layer would become redundant.
+Production databases like PostgreSQL (RLS), BigQuery, and Snowflake enforce row filtering at the storage engine level — the policy is attached to the table and cannot be bypassed by any query or connection. SQLite has no equivalent: no user model, no session context, no row-level policy hooks. The view-based approach is the closest substitute — the LLM only sees the dept_* views, the AST guardrail blocks any reference to the raw tables, and the read-only connection (mode=ro) prevents writes regardless. The honest limitation is that someone with direct file access can bypass the views entirely; in a production setting with sensitive HR data, the right answer is PostgreSQL RLS or an equivalent, and the application-layer guardrails here are partly compensating for what SQLite cannot enforce at the storage level.
 
 ### Why `sqlglot` for AST validation instead of another LLM call?
 
