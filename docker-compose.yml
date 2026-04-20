@@ -1,0 +1,16 @@
+services:
+  nl2sql:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - nl2sql_logs:/app/com/nl2sql
+    stdin_open: true   # keeps stdin open for your interactive console
+    tty: true          # allocates a pseudo-TTY (needed for prompt-toolkit)
+
+volumes:
+  nl2sql_logs:
+    driver: local

@@ -1,3 +1,21 @@
+"""
+Tests for ASTGuardrail — structural SQL policy enforcement.
+
+Policy under test
+-----------------
+1. BLOCKED TABLES  : employee, certification, benefits — rejected in any scope,
+                     regardless of WHERE clause.
+2. DEPT-FILTERED VIEWS : dept_employees, dept_certifications, dept_benefits —
+                     every SELECT scope touching one of these MUST carry
+                     WHERE Department = '<dept>'.
+
+Naming convention
+-----------------
+  test_<what>_<expected_outcome>
+  PASS  → query is compliant
+  REJECT → query violates policy
+"""
+
 from __future__ import annotations
 
 import pytest
@@ -5,158 +23,321 @@ import pytest
 from com.nl2sql.guardrails.ast_guardrail import ASTGuardrail
 from com.nl2sql.guardrails.base import GuardrailContext, GuardrailStatus
 
-DEPT = "Engineering"
-SESSION = "session-123"
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_DEPT = "Engineering"
+_SESSION = "sess-test"
 
 
-def _ctx(sql: str, dept: str = DEPT) -> GuardrailContext:
-    return GuardrailContext(sql=sql, department=dept, session_id=SESSION)
+def _ctx(sql: str, department: str = _DEPT) -> GuardrailContext:
+    return GuardrailContext(
+        sql=sql,
+        department=department,
+        session_id=_SESSION,
+    )
 
 
-@pytest.fixture
+@pytest.fixture()
 def guard() -> ASTGuardrail:
     return ASTGuardrail()
 
 
-# ── Should PASS ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# TestBlockedTables
+# Direct access to raw sensitive tables must always be rejected.
+# ---------------------------------------------------------------------------
 
-class TestPass:
-    def test_simple_select_with_filter(self, guard):
-        sql = "SELECT Name FROM dept_employees e WHERE e.Department = 'Engineering'"
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
+class TestBlockedTables:
 
-    def test_unaliased_department_column(self, guard):
-        sql = "SELECT Name FROM dept_employees WHERE Department = 'Engineering'"
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
-
-    def test_filter_with_additional_conditions(self, guard):
-        sql = """
-            SELECT Name, SalaryAmount FROM dept_employees e
-            WHERE e.Department = 'Engineering' AND e.SalaryAmount > 100000
-        """
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
-
-    def test_join_certifications_with_filter(self, guard):
-        sql = """
-            SELECT e.Name, c.CertificationName
-            FROM dept_employees e
-            JOIN dept_certifications c ON c.EmployeeId = e.EmployeeId
-            WHERE e.Department = 'Engineering'
-        """
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
-
-    def test_no_employee_table_no_filter_needed(self, guard):
-        # Query only touches dept_certifications — no dept filter required
-        sql = "SELECT CertificationName FROM dept_certifications WHERE DateAchieved > '2023-01-01'"
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
-
-    def test_aggregate_with_filter(self, guard):
-        sql = """
-            SELECT AVG(SalaryAmount) FROM dept_employees e
-            WHERE e.Department = 'Engineering'
-        """
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
-
-    def test_department_case_insensitive(self, guard):
-        # department value comparison should be case-insensitive
-        sql = "SELECT Name FROM dept_employees WHERE Department = 'engineering'"
-        assert guard.validate(_ctx(sql, dept="Engineering")).status == GuardrailStatus.PASS
-
-
-# ── Should REJECT — missing top-level filter ──────────────────────────────────
-
-class TestMissingTopLevelFilter:
-    def test_no_where_clause(self, guard):
-        sql = "SELECT Name FROM dept_employees"
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-        assert "top-level SELECT" in r.reason
-
-    def test_where_clause_wrong_department(self, guard):
-        sql = "SELECT Name FROM dept_employees WHERE Department = 'Sales'"
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-
-    def test_where_clause_wrong_column(self, guard):
-        sql = "SELECT Name FROM dept_employees WHERE Role = 'Engineering'"
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-
-    def test_filter_on_joined_table_only(self, guard):
-        # Filter exists but is on certifications, not dept_employees
-        sql = """
-            SELECT e.Name FROM dept_employees e
-            JOIN dept_certifications c ON c.EmployeeId = e.EmployeeId
-            WHERE c.CertificationName = 'AWS'
-        """
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-
-
-# ── Should REJECT — subquery leaks ───────────────────────────────────────────
-
-class TestSubqueryLeaks:
-    def test_subquery_missing_filter(self, guard):
-        # Outer has filter, inner subquery on Employee does not
-        sql = """
-            SELECT Name FROM dept_employees e
-            WHERE e.Department = 'Engineering'
-            AND e.EmployeeId IN (
-                SELECT EmployeeId FROM employee
-            )
-        """
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-        assert "sub-SELECT" in r.reason
-
-    def test_subquery_wrong_department(self, guard):
-        sql = """
-            SELECT Name FROM dept_employees e
-            WHERE e.Department = 'Engineering'
-            AND e.EmployeeId IN (
-                SELECT EmployeeId FROM employee WHERE Department = 'Sales'
-            )
-        """
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-
-    def test_both_scopes_missing_filter(self, guard):
-        sql = """
-            SELECT Name FROM dept_employees e
-            WHERE e.EmployeeId IN (
-                SELECT EmployeeId FROM employee
-            )
-        """
-        r = guard.validate(_ctx(sql))
-        assert r.status == GuardrailStatus.REJECT
-        assert r.metadata["violations"]
-        assert len(r.metadata["violations"]) == 2   # both scopes flagged
-
-
-# ── Should REJECT — raw Employee table without filter ─────────────────────────
-
-class TestRawEmployeeTable:
-    def test_raw_employee_no_filter(self, guard):
+    def test_raw_employee_no_filter_reject(self, guard):
+        """Direct SELECT on employee with no filter."""
         sql = "SELECT Name FROM employee"
         r = guard.validate(_ctx(sql))
         assert r.status == GuardrailStatus.REJECT
+        assert any("employee" in v for v in r.metadata["violations"])
 
-    def test_raw_employee_with_filter(self, guard):
+    def test_raw_employee_with_dept_filter_still_reject(self, guard):
+        """Even with the correct dept filter, raw employee is blocked."""
         sql = "SELECT Name FROM employee WHERE Department = 'Engineering'"
-        assert guard.validate(_ctx(sql)).status == GuardrailStatus.PASS
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("employee" in v for v in r.metadata["violations"])
+
+    def test_raw_certification_reject(self, guard):
+        """Direct SELECT on certification is always blocked."""
+        sql = "SELECT CertName FROM certification WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("certification" in v for v in r.metadata["violations"])
+
+    def test_raw_benefits_reject(self, guard):
+        """Direct SELECT on benefits is always blocked."""
+        sql = "SELECT Plan FROM benefits WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("benefits" in v for v in r.metadata["violations"])
+
+    def test_multiple_blocked_tables_reject(self, guard):
+        """Joining two blocked tables produces two violations."""
+        sql = """
+            SELECT e.Name, b.Plan
+            FROM employee e
+            JOIN benefits b ON e.EmployeeId = b.EmployeeId
+            WHERE e.Department = 'Engineering'
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert len(r.metadata["violations"]) == 2
 
 
-# ── Metadata ──────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# TestDeptFilteredViews — top-level only
+# ---------------------------------------------------------------------------
 
-class TestMetadata:
-    def test_violations_in_metadata(self, guard):
+class TestDeptFilteredViews:
+
+    def test_view_correct_filter_pass(self, guard):
+        """dept_employees with correct department filter — should pass."""
+        sql = "SELECT Name FROM dept_employees WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_view_no_filter_reject(self, guard):
+        """dept_employees with no WHERE clause — reject."""
         sql = "SELECT Name FROM dept_employees"
         r = guard.validate(_ctx(sql))
         assert r.status == GuardrailStatus.REJECT
-        assert "violations" in r.metadata
-        assert len(r.metadata["violations"]) == 1
+        assert r.metadata["violations"]
 
-    def test_reason_contains_department(self, guard):
-        sql = "SELECT Name FROM dept_employees"
+    def test_view_wrong_department_reject(self, guard):
+        """dept_employees filtered on a different department — reject."""
+        sql = "SELECT Name FROM dept_employees WHERE Department = 'Sales'"
         r = guard.validate(_ctx(sql))
-        assert DEPT in r.reason
+        assert r.status == GuardrailStatus.REJECT
+        assert r.metadata["violations"]
+
+    def test_view_alias_qualified_filter_pass(self, guard):
+        """Alias-qualified predicate (e.Department = '...') is accepted."""
+        sql = "SELECT e.Name FROM dept_employees e WHERE e.Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_dept_certifications_correct_filter_pass(self, guard):
+        sql = "SELECT CertName FROM dept_certifications WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_dept_certifications_no_filter_reject(self, guard):
+        sql = "SELECT CertName FROM dept_certifications"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+
+    def test_dept_benefits_correct_filter_pass(self, guard):
+        sql = "SELECT Plan FROM dept_benefits WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_dept_benefits_no_filter_reject(self, guard):
+        sql = "SELECT Plan FROM dept_benefits"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+
+
+# ---------------------------------------------------------------------------
+# TestSubqueryLeaks — subqueries must each carry their own filter / not use blocked tables
+# ---------------------------------------------------------------------------
+
+class TestSubqueryLeaks:
+
+    def test_outer_view_filtered_inner_blocked_table_reject(self, guard):
+        """
+        Outer SELECT on dept_employees (filtered) is fine.
+        Inner subquery hits raw employee — must be rejected.
+        """
+        sql = """
+            SELECT Name FROM dept_employees e
+            WHERE e.Department = 'Engineering'
+            AND e.EmployeeId IN (
+                SELECT EmployeeId FROM employee
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("employee" in v for v in r.metadata["violations"])
+
+    def test_outer_view_filtered_inner_blocked_with_filter_reject(self, guard):
+        """
+        Inner subquery on raw employee is rejected even when it has
+        a WHERE clause — the table itself is blocked.
+        """
+        sql = """
+            SELECT Name FROM dept_employees e
+            WHERE e.Department = 'Engineering'
+            AND e.EmployeeId IN (
+                SELECT EmployeeId FROM employee WHERE Department = 'Engineering'
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("employee" in v for v in r.metadata["violations"])
+
+    def test_outer_view_filtered_inner_view_filtered_pass(self, guard):
+        """
+        Both outer and inner scopes use approved views with correct filters.
+        """
+        sql = """
+            SELECT Name FROM dept_employees e
+            WHERE e.Department = 'Engineering'
+            AND e.EmployeeId IN (
+                SELECT EmployeeId FROM dept_certifications
+                WHERE Department = 'Engineering'
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_outer_view_filtered_inner_view_missing_filter_reject(self, guard):
+        """
+        Outer scope is fine, inner subquery on a dept_* view has no filter.
+        """
+        sql = """
+            SELECT Name FROM dept_employees e
+            WHERE e.Department = 'Engineering'
+            AND e.EmployeeId IN (
+                SELECT EmployeeId FROM dept_certifications
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("dept_certifications" in v for v in r.metadata["violations"])
+
+    def test_outer_view_filtered_inner_view_wrong_dept_reject(self, guard):
+        """
+        Inner subquery filters on the wrong department.
+        """
+        sql = """
+            SELECT Name FROM dept_employees e
+            WHERE e.Department = 'Engineering'
+            AND e.EmployeeId IN (
+                SELECT EmployeeId FROM dept_certifications
+                WHERE Department = 'Sales'
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+
+    def test_both_scopes_missing_filter_two_violations(self, guard):
+        """
+        Outer and inner both reference dept_* views without any filter.
+        Expect exactly 2 violations.
+        """
+        sql = """
+            SELECT Name FROM dept_employees e
+            WHERE e.EmployeeId IN (
+                SELECT EmployeeId FROM dept_certifications
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert len(r.metadata["violations"]) == 2
+
+    def test_outer_blocked_inner_view_filtered_reject(self, guard):
+        """
+        Outer scope hits raw employee — inner being fine doesn't save it.
+        """
+        sql = """
+            SELECT Name FROM employee e
+            WHERE e.EmployeeId IN (
+                SELECT EmployeeId FROM dept_certifications
+                WHERE Department = 'Engineering'
+            )
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("employee" in v for v in r.metadata["violations"])
+
+
+# ---------------------------------------------------------------------------
+# TestMultiViewJoins — joins across multiple approved views
+# ---------------------------------------------------------------------------
+
+class TestMultiViewJoins:
+
+    def test_join_two_views_both_filtered_pass(self, guard):
+        """Joining dept_employees and dept_certifications, both filtered."""
+        sql = """
+            SELECT e.Name, c.CertName
+            FROM dept_employees e
+            JOIN dept_certifications c ON e.EmployeeId = c.EmployeeId
+            WHERE e.Department = 'Engineering'
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_join_two_views_no_filter_reject(self, guard):
+        """Joining two approved views but no dept filter anywhere."""
+        sql = """
+            SELECT e.Name, c.CertName
+            FROM dept_employees e
+            JOIN dept_certifications c ON e.EmployeeId = c.EmployeeId
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+
+    def test_join_approved_and_blocked_reject(self, guard):
+        """One approved view joined with a blocked table — must reject."""
+        sql = """
+            SELECT e.Name, b.Plan
+            FROM dept_employees e
+            JOIN benefits b ON e.EmployeeId = b.EmployeeId
+            WHERE e.Department = 'Engineering'
+        """
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.REJECT
+        assert any("benefits" in v for v in r.metadata["violations"])
+
+
+# ---------------------------------------------------------------------------
+# TestEdgeCases
+# ---------------------------------------------------------------------------
+
+class TestEdgeCases:
+
+    def test_empty_sql_reject(self, guard):
+        r = guard.validate(_ctx(""))
+        assert r.status == GuardrailStatus.REJECT
+
+    def test_non_employee_table_no_filter_pass(self, guard):
+        """
+        A SELECT on a table that is neither blocked nor a dept_* view
+        requires no dept filter (e.g. a lookup / reference table).
+        """
+        sql = "SELECT Code, Label FROM job_grades"
+        r = guard.validate(_ctx(sql))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_different_department_context_pass(self, guard):
+        """Filter matches the session department (Sales), not Engineering."""
+        sql = "SELECT Name FROM dept_employees WHERE Department = 'Sales'"
+        r = guard.validate(_ctx(sql, department="Sales"))
+        assert r.status == GuardrailStatus.PASS
+
+    def test_different_department_context_reject(self, guard):
+        """Filter is Engineering but session dept is Sales — reject."""
+        sql = "SELECT Name FROM dept_employees WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql, department="Sales"))
+        assert r.status == GuardrailStatus.REJECT
+
+    def test_result_layer_name(self, guard):
+        """GuardrailResult.layer should always be 'ASTGuardrail'."""
+        sql = "SELECT Name FROM dept_employees WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.layer == "ASTGuardrail"
+
+    def test_pass_result_has_no_violations(self, guard):
+        """A passing result must carry no violations in metadata."""
+        sql = "SELECT Name FROM dept_employees WHERE Department = 'Engineering'"
+        r = guard.validate(_ctx(sql))
+        assert r.metadata.get("violations") is None or r.metadata.get("violations") == []

@@ -33,11 +33,13 @@ class SessionManager:
         print(session.summary())
     """
 
-    def __init__(self, settings: Settings, department: Department | None = None) -> None:
+    def __init__(self, settings: Settings, department: Department | None = None,
+                 skip_log_at_startup = True) -> None:
         """
         Args:
             department: Pin to a specific department (useful for testing).
                         If None, one is chosen at random — the normal production path.
+                        :param skip_log_at_startup:
         """
         self._session_id = str(uuid.uuid4())
         self._started_at = datetime.now()
@@ -46,8 +48,8 @@ class SessionManager:
         self._blocked_count = 0
         self._settings = settings
         self._connection = self._create_db_connection()
-
-        self._log_startup()
+        if not skip_log_at_startup:
+            self._log_startup()
 
     # ── Public read-only properties ───────────────────────────────────────────
 
@@ -129,10 +131,13 @@ class SessionManager:
     # ── Private ───────────────────────────────────────────────────────────────
 
     def _log_startup(self) -> None:
-        print(f"[yellow][INFO] Session ID    : {self._session_id}[/yellow]")
-        print(f"[yellow][INFO] Department selected: {self._department.value}[/yellow]")
-        print(f"[yellow][INFO] Started at    : "
-              f"{self._started_at.strftime('%Y-%m-%d %H:%M:%S')} [/yellow]")
+        print(f"\n[cyan]{'─' * 50}[/cyan]\n")
+        print("[cyan] Session Information[/cyan]")
+        print(f"\n[cyan]{'─' * 50}[/cyan]\n")
+        print(f"[cyan] Session ID    : {self._session_id}[/cyan]")
+        print(f"[cyan] Department    : {self._department.value.upper()}[/cyan]")
+        print(f"[cyan] Started at    : "
+              f"{self._started_at.strftime('%Y-%m-%d %H:%M:%S')} [/cyan]")
 
 
     def _create_db_connection(self) -> sqlite3.Connection:

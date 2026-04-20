@@ -1,39 +1,58 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import sqlglot
 import sqlglot.expressions as exp
 
 from com.nl2sql.guardrails.base import BaseGuardrail, GuardrailContext, GuardrailResult
 
-# Every SELECT scope that touches the Employee table must have this filter.
-_EMPLOYEE_TABLES = frozenset({"employee", "dept_employees"})
+# ---------------------------------------------------------------------------
+# Table policy
+# ---------------------------------------------------------------------------
+
+# Raw tables that must NEVER appear in any SELECT scope.
+# Add any new sensitive tables here.
+_BLOCKED_TABLES = frozenset({
+    "employee",
+    "certification",
+    "benefits",
+})
+
+# Views that are permitted — but every scope referencing them must carry
+# a WHERE Department = '<dept>' predicate.
+_DEPT_FILTERED_VIEWS = frozenset({
+    "dept_employees",
+    "dept_certifications",
+    "dept_benefits",
+})
 
 
-def _all_select_scopes(tree: exp.Expression) -> Iterator[exp.Select]:
-    """Yield the top-level SELECT and every sub-SELECT in the AST."""
-    yield from tree.find_all(exp.Select)
+# ---------------------------------------------------------------------------
+# AST helpers
+# ---------------------------------------------------------------------------
 
-
-def _scope_touches_employee(select: exp.Select) -> bool:
-    """Return True if this SELECT scope references Employee or dept_employees."""
-    return any(
-        tbl.name.lower() in _EMPLOYEE_TABLES
-        for tbl in select.find_all(exp.Table)
-        if tbl.name
-    )
+def _direct_tables(select: exp.Select):
+    """
+    Yield Table nodes that belong *directly* to this SELECT scope.
+    Does NOT descend into nested sub-SELECTs — each scope is checked
+    independently by _all_select_scopes.
+    """
+    for node in select.walk():
+        if node is not select and isinstance(node, exp.Select):
+            # Stop descent — that scope is handled by its own iteration.
+            continue
+        if isinstance(node, exp.Table) and node.name:
+            yield node
 
 
 def _scope_has_dept_filter(select: exp.Select, department: str) -> bool:
     """
-    Return True if the WHERE clause of this SELECT scope contains
-    a predicate of the form: <col> = '<department>'
-    where <col> is 'department' (with any optional table alias prefix).
+    Return True when the WHERE clause of *this* scope contains a predicate
+    of the form:  <col> = '<department>'
+    where <col> resolves to 'department' (alias-qualified or bare).
 
     Accepts both:
         e.Department = 'Engineering'
-        Department = 'Engineering'
+        Department   = 'Engineering'
     """
     where = select.find(exp.Where)
     if where is None:
@@ -42,16 +61,17 @@ def _scope_has_dept_filter(select: exp.Select, department: str) -> bool:
     for eq in where.find_all(exp.EQ):
         left, right = eq.left, eq.right
 
-        # Normalise column name (strip alias prefix)
         col_name = ""
         if isinstance(left, exp.Column):
             col_name = left.name.lower()
         elif isinstance(left, exp.Dot):
-            col_name = left.expression.name.lower() if hasattr(left.expression, "name") else ""
+            col_name = (
+                left.expression.name.lower()
+                if hasattr(left.expression, "name")
+                else ""
+            )
 
-        val = ""
-        if isinstance(right, exp.Literal):
-            val = right.this
+        val = right.this if isinstance(right, exp.Literal) else ""
 
         if col_name == "department" and val.lower() == department.lower():
             return True
@@ -59,18 +79,29 @@ def _scope_has_dept_filter(select: exp.Select, department: str) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# Guardrail
+# ---------------------------------------------------------------------------
+
 class ASTGuardrail(BaseGuardrail):
     """
-    Layer 3 — structural SQL validation (deterministic, code-based).
+    Layer 3 — structural SQL validation (deterministic, AST-based).
 
-    Checks that EVERY SELECT scope touching the Employee table has an explicit
-    WHERE Department = '<dept>' predicate. This catches:
-      - Missing top-level filter
-      - Subqueries that join back to Employee without a filter
-      - Correlated subqueries that leak cross-dept aggregates
+    Policy
+    ------
+    1. BLOCKED TABLES  — ``employee``, ``certification``, ``benefits`` (and any
+       future entries in ``_BLOCKED_TABLES``) must never appear in any SELECT
+       scope.  Direct access is rejected regardless of any WHERE clause.
 
-    This layer does NOT mutate SQL — it rejects and lets the retry loop fix it.
-    The rejection reason is specific so the LLM knows exactly what to correct.
+    2. DEPT-FILTERED VIEWS — ``dept_employees``, ``dept_certifications``,
+       ``dept_benefits`` are the approved surfaces.  Every SELECT scope that
+       references one of these views must carry an explicit
+       ``WHERE Department = '<dept>'`` predicate so data cannot leak across
+       department boundaries through subqueries or CTEs.
+
+    This layer does NOT mutate SQL — it rejects and lets the retry loop
+    regenerate a compliant query.  The rejection reason is written to be
+    directly actionable by the LLM on the next attempt.
     """
 
     def validate(self, ctx: GuardrailContext) -> GuardrailResult:
@@ -81,29 +112,42 @@ class ASTGuardrail(BaseGuardrail):
         except Exception as exc:
             return self._reject(sql, f"SQL parse error in ASTGuardrail: {exc}")
 
-        if not statements:
+        tree = next((s for s in statements if s is not None), None)
+        if tree is None:
             return self._reject(sql, "No SQL statements found.")
-
-        tree = statements[0]
         violations: list[str] = []
 
-        for i, scope in enumerate(_all_select_scopes(tree)):
-            if not _scope_touches_employee(scope):
-                continue  # This scope doesn't touch Employee — skip
+        for i, scope in enumerate(tree.find_all(exp.Select)):
+            label = "top-level SELECT" if i == 0 else f"sub-SELECT #{i}"
+            tables = list(_direct_tables(scope))
+            table_names = {t.name.lower() for t in tables}
 
-            if not _scope_has_dept_filter(scope, ctx.department):
-                label = "top-level SELECT" if i == 0 else f"sub-SELECT #{i}"
+            # ── Rule 1: blocked raw tables ──────────────────────────────────
+            blocked_hits = table_names & _BLOCKED_TABLES
+            for tbl in sorted(blocked_hits):
                 violations.append(
-                    f"{label} references the Employee table but is missing "
+                    f"{label} directly references the restricted table '{tbl}' — "
+                    f"use the approved view instead "
+                    f"(e.g. 'dept_{tbl}s' or the appropriate dept_* view)"
+                )
+
+            # ── Rule 2: approved views must carry a dept filter ──────────────
+            view_hits = table_names & _DEPT_FILTERED_VIEWS
+            if view_hits and not _scope_has_dept_filter(scope, ctx.department):
+                views_str = ", ".join(sorted(view_hits))
+                violations.append(
+                    f"{label} references view(s) [{views_str}] but is missing "
                     f"WHERE Department = '{ctx.department}'"
                 )
 
         if violations:
             reason = (
-                f"Department filter missing in {len(violations)} scope(s):\n"
+                f"AST policy violated in {len(violations)} scope(s):\n"
                 + "\n".join(f"  - {v}" for v in violations)
-                + f"\nEvery SELECT touching Employee MUST include: "
-                f"WHERE e.Department = '{ctx.department}'"
+                + "\n\nRules:\n"
+                "  1. Never query employee / certification / benefits directly.\n"
+                "  2. Every SELECT referencing a dept_* view must include "
+                f"WHERE Department = '{ctx.department}'."
             )
             return self._reject(sql, reason, metadata={"violations": violations})
 
