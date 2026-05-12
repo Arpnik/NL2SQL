@@ -1,4 +1,4 @@
-# NL2SQL — Natural Language to SQL Agent
+# SafeNL2SQL — Department-Scoped Natural Language to SQL with Multi-Layer Guardrails
 
 A console-based AI agent that translates natural language questions into SQL queries against an employee database, with a multi-layer guardrail system that enforces strict department-scoped access control.
 
@@ -95,21 +95,21 @@ User question
     ↓
 Layer 0  — Query validation guardrail   (LLM classifier)
     ↓
-Layer 1  — Prompt guardrail + SQL gen   (LLM, dept-injected prompt)
+Layer 1  — Prompt guardrail + SQL generation   (LLM, dept-injected prompt using few shot examples)
     ↓
-Layer 2  — Schema guardrail             (AST, keyword scan)
+Layer 2  — Schema guardrail             (keyword scan to check for allowed tables/views)
     ↓
 Layer 3  — AST guardrail                (sqlglot, dept-filter check)
     ↓
-Layer 3.5— View guardrail               (mutating rewrite + sentinel injection)
+Layer 4  — View guardrail               (mutating rewrite + sentinel injection)
     ↓
-         — SQL execution                (read-only SQLite connection)
+SQL execution                           (read-only SQLite connection)
     ↓
 Layer 5  — Output guardrail             (row-level sentinel scan)
     ↓
 Results displayed
 ```
-<img src="images/arch.png" width="700" height="350" alt="Demo">
+<img src="images/architecture.png" width="700" height="350" alt="Demo">
 
 Rejected SQL is fed back to the LLM with a detailed rejection reason, allowing the model to self-correct before the next attempt.
 
@@ -157,7 +157,7 @@ Deep structural validation using `sqlglot`'s expression tree. Checks every `SELE
 
 This catches cases Layer 2 cannot: a subquery that joins back to the raw `Employee` table, or a correlated subquery that leaks cross-department aggregates.
 
-**Layer 3.5 — View guardrail (`view_guardrail.py`) — mutating**
+**Layer 4 — View guardrail (`view_guardrail.py`) — mutating**
 
 Unlike the other guardrails, this layer rewrites the SQL rather than rejecting it. It:
 
